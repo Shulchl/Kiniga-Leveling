@@ -1,0 +1,19 @@
+{
+    "bot_token": "",
+    "postgresql_user": "postgres",
+    "postgresql_password": "",
+    "min_message_xp": 5,
+    "max_message_xp": 15,
+    "coinsmin": 5,
+    "coinsmax": 15,
+    "lucky": 5,
+    "prefix": "s.",
+    "bdayloop": false,
+    "guild": "",
+    "chat_cmds": 641165165115,
+    "coin_max": 20,
+    "setup": false,
+    "ranks" : [],
+    "colors" : [],
+    "trash" : [["uma meia"], ["um sapato"], ["um saco plástico"], ["uma rede"]]
+}
