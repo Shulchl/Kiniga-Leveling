@@ -21,10 +21,10 @@ class User(commands.Cog, name='Usuario', description='Comandos de Opções dos U
         self.bot = bot
         self.db = utilities.database(self.bot.loop, self.bot.cfg.postgresql_user, self.bot.cfg.postgresql_password)
         self.brake = []
-        
+
         with open('config.json', 'r') as f:
             self.cfg = Config(json.loads(f.read()))
-            
+
     @commands.cooldown(1, 3, commands.BucketType.guild)
     @commands.command(name='rank', aliases=['nivel', 'lv', 'level', 'badge'])
     async def rank(self, ctx, member: dMember=None) -> None:
@@ -34,26 +34,27 @@ class User(commands.Cog, name='Usuario', description='Comandos de Opções dos U
             uMember = ctx.author
         result = await self.db.fetch(f"SELECT rank, xp, xptotal FROM users WHERE id='{uMember.id}'")
         if result:
-            try:
-                if uMember.is_avatar_animated:
-                    req = await self.bot.http.request(discord.http.Route("GET", "/users/{uid}", uid=uMember.id))
-                    banner_id = req["banner"]
-                    assert io.BytesIO(requests.get(f"https://cdn.discordapp.com/banners/{uMember.id}/{banner_id}?size=2048").content).getvalue()
-                    profile_bytes = io.BytesIO(requests.get(f"https://cdn.discordapp.com/banners/{uMember.id}/{banner_id}?size=2048").content).getvalue()
-                        #await ctx.send(f'https://cdn.discordapp.com/banners/{uMember.id}/{banner_id}?size=2048')
-                    
-            except:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(f'{uMember.avatar_url}?size=512') as resp:
-                        profile_bytes = await resp.read()
-                        
+            #try:
+            #    if uMember.is_avatar_animated:
+            #        req = await self.bot.http.request(discord.http.Route("GET", "/users/{uid}", uid=uMember.id))
+            #        banner_id = req["banner"]
+            #        assert io.BytesIO(requests.get(f"https://cdn.discordapp.com/banners/{uMember.id}/{banner_id}?size=2048").content).getvalue()
+            #        profile_bytes = io.BytesIO(requests.get(f"https://cdn.discordapp.com/banners/{uMember.id}/{banner_id}?size=2048").content).getvalue()
+            #            #await ctx.send(f'https://cdn.discordapp.com/banners/{uMember.id}/{banner_id}?size=2048')
+
+            #except:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f'{uMember.avatar_url}?size=512') as resp:
+                    profile_bytes = await resp.read()
+                    assert profile_bytes
+
             total = await self.db.fetch('SELECT COUNT(lv) FROM ranks')
             d = re.sub('\\D', '', str(total))
             if int(d) > 0:
                 try:
                     rankss = await self.db.fetch(f"SELECT name, r, g, b FROM ranks WHERE lv <= {result[0][0]} ORDER BY lv DESC")
                     mold = await self.db.fetch(f"SELECT name, img_profile FROM itens WHERE name=(\'{rankss[0][0]}\')")
-                    moldName = "Novato" #Muuita preguiça de fazer imagem pra novato, então só usei a mesma do Soldado Nadir 
+                    moldName = "Novato" #Muuita preguiça de fazer imagem pra novato, então só usei a mesma do Soldado Nadir
                     moldImg = "src\molduras\#1.png"
                     if mold:
                         moldName = mold[0][0]
@@ -92,11 +93,11 @@ class User(commands.Cog, name='Usuario', description='Comandos de Opções dos U
                 self.brake.append(ctx.message.author.id)
                 await asyncsleep(30) #randint(15, 25)
                 self.brake.remove(ctx.message.author.id)
-                    
+
         else:
             await ctx.send(f"Você precisa esperar 5 minutos para poder minerar de novo.",delete_after=5)
 
-    @commands.command(name='topspark', 
+    @commands.command(name='topspark',
                       help='Ao digitar s.topspark , mostra o TOP 5 mais ricos do servidor.',
                       aliases=["spark", "top", "ts"])
     #@commands.cooldown(1, 120, BucketType.user)
@@ -129,7 +130,7 @@ class User(commands.Cog, name='Usuario', description='Comandos de Opções dos U
                         user = [user.name for user in ctx.guild.members if user.id == int(mid)]
                         emb = emb.add_field(name=f"{count_line+1}º — {''.join(user)}', Nível {rank}", value=f"{sparks} Sparks", inline=False)
                         count_line +=1
-                    
+
                 num = await self.db.fetch(f"WITH temp AS (SELECT id, row_number() OVER (ORDER BY coin DESC) AS rownum FROM users) SELECT rownum FROM temp WHERE id = '{member.id}'")
                 member_row = re.sub(r"\D", "", str(num))
                 member_details = await self.db.fetch(f"SELECT rank, coin FROM users WHERE id='{member.id}'")
@@ -137,10 +138,10 @@ class User(commands.Cog, name='Usuario', description='Comandos de Opções dos U
                 sparks = member_details[0][1]
                 emb = emb.add_field(name=f"Sua posição é {int(member_row)}º — {member.name}, Nível {rank}", value=f"{sparks} Sparks", inline=False)
                 await ctx.send('',embed=emb)
-        
+
     #   classe
-    @commands.command(name='classes', 
-                      help='Ao digitar s.classes , mostra todas as classes disponíveis.', 
+    @commands.command(name='classes',
+                      help='Ao digitar s.classes , mostra todas as classes disponíveis.',
                       aliases=["ranks", "niveis"])
     async def classes(self, ctx):
         await self.db.fetch('CREATE TABLE IF NOT EXISTS ranks (lv INT NOT NULL, name TEXT NOT NULL, localE TEXT NOT NULL, localRR TEXT NOT NULL, sigla TEXT, path TEXT)')
@@ -168,9 +169,9 @@ class User(commands.Cog, name='Usuario', description='Comandos de Opções dos U
                 await ctx.send('',embed=emb)
             else: await ctx.send("```Parece que não temos nenhuma classe ainda...```", delete_after=5)
 
- 
+
     #info
-    @commands.command(name='info', 
+    @commands.command(name='info',
                       help='Ao digitar s.info "Texto-Para-Perfil-Aqui" (é preciso que o texto esteja entre aspas DUPLAS), define o texto de informação que aparecerá em seu s.perfil.',
                       aliases=["status", "bio"])
     async def info(self, ctx, *, content) -> None:
@@ -178,21 +179,21 @@ class User(commands.Cog, name='Usuario', description='Comandos de Opções dos U
         size = len(info)
         if size > 55:
             raise BadArgument
-        
-        await self.db.fetch(f'UPDATE users SET info = (\'{info}\') WHERE id = (\'{ctx.author.id}\')')                         
+
+        await self.db.fetch(f'UPDATE users SET info = (\'{info}\') WHERE id = (\'{ctx.author.id}\')')
         await ctx.send("```Campo de informações atualizado. Visualize utilizando d.perfil```", delete_after=5)
     @info.error
     async def info_error(self, ctx, error):
         if isinstance(error, commands.BadArgument):
-            return await ctx.send("O texto deve conter 55 palavras ou menos, contando espaços.", delete_after=5)   
-    @commands.command(name='delinfo', 
+            return await ctx.send("O texto deve conter 55 palavras ou menos, contando espaços.", delete_after=5)
+    @commands.command(name='delinfo',
                       help='Ao digitar s.delinfo, remove o texto de informação atual do seu s.perfil e substitui por "Não há o que bisbilhotar aqui".')
     async def delinfo(self, ctx) -> None:
-        await self.db.fetch(f'UPDATE users SET info = (\'\') WHERE id = (\'{ctx.author.id}\')')                         
+        await self.db.fetch(f'UPDATE users SET info = (\'\') WHERE id = (\'{ctx.author.id}\')')
         await ctx.send("```Campo de informações atualizado. Visualize utilizando d.perfil```", delete_after=5)
-    
-    #bday    
-    @commands.command(name='niver', 
+
+    #bday
+    @commands.command(name='niver',
                       help= 'Ao digitar s.niver <dia/mês>, define a data de aniversário presente em seu s.perfil.'
                       '(NÃO COLOQUE ANO! É preciso que sejam números separados por uma barra. você pode fazer aniversário dia 99, por exemplo. Seja criativo!).',
                       aliases=["aniversario", "aniversário", "aniver"],)
@@ -208,11 +209,11 @@ class User(commands.Cog, name='Usuario', description='Comandos de Opções dos U
         await ctx.send("```Aniversário atualizado!```", delete_after=3)
     @commands.command(name='delniver', help='Ao digitar s.delniver, remove o a data de aniversário atual do seu s.perfil e substitui por "??/??".')
     async def delniver(self, ctx) -> None:
-        await self.db.fetch(f'UPDATE users SET birth = (\'???\') WHERE id = (\'{ctx.author.id}\')')                         
+        await self.db.fetch(f'UPDATE users SET birth = (\'???\') WHERE id = (\'{ctx.author.id}\')')
         await ctx.send("```Aniversário atualizado!```", delete_after=5)
-            
-    @commands.command(name='inv', 
-                      help='Ao digitar s.inv, mostra todos os itens que você possui. Incluindo os que não podem mais ser obtidos na s.loja.', 
+
+    @commands.command(name='inv',
+                      help='Ao digitar s.inv, mostra todos os itens que você possui. Incluindo os que não podem mais ser obtidos na s.loja.',
                       aliases=["inventário", "inventario", "bag", "bolsa", "mochila"])
     async def inv(self, ctx):
         invent = await self.db.fetch(f"SELECT inv FROM users WHERE id=(\'{ctx.author.id}\')")
@@ -235,11 +236,11 @@ class User(commands.Cog, name='Usuario', description='Comandos de Opções dos U
                             emb = emb.add_field(name=f"-", value=f"-", inline=True)
             else:
                 await ctx.send("Você ainda não comprou nada!", delete_after=5)
-            
+
             await ctx.send(embed=emb, delete_after=30)
-      
-      
-    
+
+
+
 
 def setup(bot) -> None:
     bot.add_cog(User(bot))

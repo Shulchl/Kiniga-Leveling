@@ -21,14 +21,14 @@ class Mod(commands.Cog):
         self.db = utilities.database(
             self.bot.loop, self.bot.cfg.postgresql_user, self.bot.cfg.postgresql_password)
         self.chosen = []
-        
-            
+
+
         if self.bot.cfg.bdayloop == True:
             self.bdayloop.start()
-    
+
     def cog_unload(self):
-      self.bdayloop.close()
-      return
+      return self.bdayloop.close()
+      
 
     # LOOP DE ANIVERSÁRIO // BDAY LOOP
     @tasks.loop(hours = 12, count = 1)
@@ -37,7 +37,7 @@ class Mod(commands.Cog):
         await channel.send("Verificando aniversariantes...", delete_after=5)
         await asyncsleep(5)
         birthday = await self.db.fetch("SELECT id FROM users WHERE birth=TO_CHAR(NOW() :: DATE, 'dd/mm')")
-        
+
         for bday in birthday:
             await channel.send(f"Parabéns <@{bday[0]}>, hoje é seu aniversário! Todos dêem parabéns!")
 
@@ -45,7 +45,7 @@ class Mod(commands.Cog):
     async def before_send(self):
         await self.bot.wait_until_ready()
         return
-    
+
     #Controle de loop
     @commands.command(name='bdl')
     async def bdl(self, ctx, opt):
@@ -137,12 +137,12 @@ class Mod(commands.Cog):
             description="",
             color=0x006400
         )
-        embed.set_author(name=f'{prize}', icon_url='') 
+        embed.set_author(name=f'{prize}', icon_url='')
         embed.add_field(
             name=f"Criado por:",
             value=ctx.author.mention
         )
-        embed.set_footer(text=f"Sorteio irá durar por {ans[1]}\n. {end} por enquanto!") 
+        embed.set_footer(text=f"Sorteio irá durar por {ans[1]}\n. {end} por enquanto!")
         #await ctx.send(file=discord.File('./src/extra/Spark.png'))
 
         my_msg = await channel.send(embed = embed)
@@ -161,7 +161,7 @@ class Mod(commands.Cog):
         await channel.send(f"Parabéns, {winner.mention}!.\nVocê tem 1 minuto para falar no canal, do contrário o sorteio será refeito.") #// {winner.mention} ganhou {prize}
         await channel.set_permissions(winner, send_messages=True)
         await channel.send(winner.id)
-        
+
         def winner_validation(currentMessage):
             return currentMessage.author == winner and currentMessage.channel == channel
         try:
@@ -182,20 +182,20 @@ class Mod(commands.Cog):
             await ctx.send(f'Que pena, {winner}, mas terei que refazer o sorteio...')
             await asyncsleep(5)
             await self.bot.loop.create_task(self.reroll(ctx, channel, winner))
-        
-        
+
+
         return giveaway_messageId
 
         # REROLL
-    
+
     @commands.has_any_role(667839130570588190, 815704339221970985, 677283492824088576, 'Administrador', 'Admin')
-    @commands.command(aliases=["rr"], name='reroll', help='SÓ PARA EQUIPE! \n Ao digitar s.reroll <#canal-do-sorteio> <@último-ganhador>, refaz o sorteio.') 
+    @commands.command(aliases=["rr"], name='reroll', help='SÓ PARA EQUIPE! \n Ao digitar s.reroll <#canal-do-sorteio> <@último-ganhador>, refaz o sorteio.')
     async def reroll(self, ctx, channel : discord.TextChannel, lastWinner:discord.Member):
         try:
             new_msg = await channel.fetch_message(giveway_idFunction.ids)
         except:
             return await ctx.send("O ID fornecido é incorreto")
-            
+
         users = await new_msg.reactions[0].users().flatten()
         users.pop(users.index(self.bot.user))
         nWinner = random.choice(users)
@@ -206,7 +206,7 @@ class Mod(commands.Cog):
 
 # Destacar item na loja // Pin shop item
     @commands.has_any_role(667839130570588190, 815704339221970985, 677283492824088576, 'Administrador', 'Admin')
-    @commands.command(aliases=["destaque"], name='dest', help='SÓ PARA EQUIPE! \n Ao digitar s.det <ID-DO-ITEM>, destaca o item na loja.') 
+    @commands.command(aliases=["destaque"], name='dest', help='SÓ PARA EQUIPE! \n Ao digitar s.det <ID-DO-ITEM>, destaca o item na loja.')
     async def dest(self, ctx, id):
         await ctx.message.delete()
         result = await self.db.fetch(f'SELECT * FROM itens WHERE id = {int(id)}')
@@ -238,45 +238,45 @@ class Mod(commands.Cog):
             await ctx.send("Não encontrei um item com esse ID", delete_after=5)
 
     @commands.command(name='setup', aliases=['config'])
-    @commands.has_permissions(administrator=True) 
+    @commands.has_permissions(administrator=True)
     async def setup(self, ctx, role : discord.Role = None) -> None:
         await ctx.message.delete()
-        
+
         await starterRoles(self, ctx.message)
-        
+
         def validation(currentMessage):
             return currentMessage.author == ctx.author and currentMessage.channel == ctx.channel
-        
+
         emb = discord.Embed(title='Seja bem vindo(a) à KINIGA BRASIL!', color=0x2ecc71,
                         description=f'Aperte o botão para podermos verificar sua conta e te dar acesso ao servidor! '
                                     f':smiley:\n')
         emb.set_image(url="https://www.kiniga.com/wp-content/uploads/2017/10/New-Logo-Inv-150px.png")
-        msg_id = await ctx.send( 
-                           embed=emb, 
+        msg_id = await ctx.send(
+                           embed=emb,
                            components=[
-                                       Button(style=ButtonStyle.green, 
-                                              label="VERIFICAR", 
+                                       Button(style=ButtonStyle.green,
+                                              label="VERIFICAR",
                                               custom_id="VERIFY",
                                               emoji="✅")])
-        
+
         message_id = msg_id.id
-            
+
         equal = await self.db.fetch(f"SELECT message_id, role_id FROM setup WHERE guild = '{ctx.guild.id}'")
         guildExist = False
         if equal:
             guildExist = True
         if not role:
-            await ctx.send("Qual cargo servirá como verificado? (Apenas ID)", delete_after=10)
+            await ctx.reply("Qual cargo servirá como verificado? (Apenas ID)")
             msg = await self.bot.wait_for('message', timeout=15.0, check=validation)
             try:
                 role = discord.utils.find(lambda r: r.id == int(msg.content), ctx.guild.roles) or discord.utils.find(lambda r: r.id == int(equal[0][1]), ctx.guild.roles)
                 if not role:
                     role = await ctx.guild.create_role(name="VERIFICADO")
-                    await ctx.reply(f"Não foi possível encontrar um cargo o ID fornecido, portando criei um novo.", delete_after=5)
+                    await ctx.reply(f"Não foi possível encontrar um cargo o ID fornecido, portando criei um novo.")
                 await msg.delete()
             except Exception as i:
                 raise i
-                
+
         try:
             if guildExist:
                 await self.db.fetch(f"UPDATE setup SET message_id={message_id}, role_id={role.id} WHERE guild = '{ctx.guild.id}'")
@@ -284,8 +284,8 @@ class Mod(commands.Cog):
                 await self.db.fetch(f"INSERT INTO setup VALUES ({ctx.guild.id}, {message_id}, {role.id})")
         except Exception as t:
             raise t
-        
-        return await ctx.send("Configurado!", delete_after=5)
+
+        return await ctx.reply("Configurado!")
 
     def randStr(self, string_length):
         """Returns a random string of length string_length."""
@@ -293,7 +293,7 @@ class Mod(commands.Cog):
         random = random.upper() # Make all characters uppercase.
         random = random.replace("-","") # Remove the UUID '-'.
         return random[0:string_length] # Return the random string.
-    
+
     def get_captcha(self, interaction):
         strings = [self.randStr(6),
                     self.randStr(6),
@@ -304,9 +304,9 @@ class Mod(commands.Cog):
         #await ctx.send(chosen)
         self.images = ImageCaptcha(fonts=[
             'src/fonts/BarlowSemiCondensedBold.ttf',
-            'src/fonts/MontserratBold.ttf', 
-            'src/fonts/MontserratExtraBold.ttf', 
-            'src/fonts/OpenSansBold.ttf', 
+            'src/fonts/MontserratBold.ttf',
+            'src/fonts/MontserratExtraBold.ttf',
+            'src/fonts/OpenSansBold.ttf',
             'src/fonts/MontserratRegular.ttf'])
         data = self.images.generate(str(self.chosen))
         embed=discord.Embed(title="Selecione a opção correspondente à imagem para continuar.", color=0x0f83ff)
@@ -323,14 +323,14 @@ class Mod(commands.Cog):
                                                 SelectOption(label=str(strings[1]), value=str(strings[1])),
                                                 SelectOption(label=str(strings[2]), value=str(strings[2])),
                                                 SelectOption(label=str(strings[3]), value=str(strings[3])),
-                                                
+
                                             ],custom_id="verification"
-                                            
-                                            
+
+
                                         )
                                     ],
                                     )
-    
+
     @commands.Cog.listener()
     async def on_button_click(self, interaction):
         result = await self.db.fetch(f"SELECT message_id, role_id FROM setup WHERE guild = (\'{interaction.guild.id}\')")
@@ -344,19 +344,19 @@ class Mod(commands.Cog):
                 except Exception as e:
                     print("Cargo não encontrado\nFinalizando processo...")
                     raise e
-                
+
                 member = interaction.guild.get_member(interaction.user.id)
-                
+
                 if member is None:
                     return
                 try:
                     await self.get_captcha(interaction)
-                    
+
                     #await message.respond(f"{strings}", file=dFile(fp=data, filename='captcha.png'))
                     #await member.add_roles(role)
                 except Exception as e:
                     raise e
-        
+
     @commands.Cog.listener()
     async def on_select_option(self, interaction):
         label = interaction.values
@@ -374,7 +374,7 @@ class Mod(commands.Cog):
                         except Exception as e:
                             raise e
                             #role = await interaction.guild.create_role(name="VERIFICADO")
-                        member = interaction.guild.get_member(interaction.user.id)    
+                        member = interaction.guild.get_member(interaction.user.id)
                         await member.add_roles(role)
                         await interaction.respond(content=f"{interaction.user.mention}, você está verificado e já pode conversar no servidor!")
                 else:

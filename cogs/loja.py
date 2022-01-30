@@ -24,11 +24,12 @@ class Shop(commands.Cog, name='Loja', description='Comandos de Opções Loja'):
             uMember = member
         else:
             uMember = ctx.author
-            
+
         total = await self.db.fetch('SELECT COUNT(id) FROM itens')
         async with aiohttp.ClientSession() as session:
                 async with session.get(f'{uMember.avatar_url_as(format="png", size=512)}') as resp:
                     userImg = await resp.read()
+                    assert userImg
         for t in total:
             d = re.sub(r"\D", "", str(t))
             total = int(d)
@@ -43,34 +44,22 @@ class Shop(commands.Cog, name='Loja', description='Comandos de Opções Loja'):
                         #    return await ctx.send(f"O limite de páginas é {int(total/3)}", delete_after=5)
                         #elif (total/3) < int(total/3):
                         #    return await ctx.send(f"O limite de páginas é {int(total/3)+1}", delete_after=5)
-                    
+
                     itens = []
                     while count < total:
-                        try:
-                            itens[count].append({
-                                        "id" : str(rows[count][0]),
-                                        "name" : str(rows[count][1]),
-                                        "type" : str(rows[count][2]),
-                                        "value" : str(rows[count][3]),
-                                        "img" : str(rows[count][4]),
-                                        "imgs" : str(rows[count][5]),
-                                        "lvmin" : str(rows[count][6]),
-                                        "dest" : str(rows[count][7])
-                                        })
-                        except:
-                            itens.append({count:{
-                                "id" : str(rows[count][0]),
-                                "name" : str(rows[count][1]),
-                                "type" : str(rows[count][2]),
-                                "value" : str(rows[count][3]),
-                                "img" : str(rows[count][4]),
-                                "imgs" : str(rows[count][5]),
-                                "lvmin" : str(rows[count][6]),
-                                "dest" : str(rows[count][7])
-                            }})
-                            
+                        itens.append({count:{
+                            "id" : str(rows[count][0]),
+                            "name" : str(rows[count][1]),
+                            "type" : str(rows[count][2]),
+                            "value" : str(rows[count][3]),
+                            "img" : str(rows[count][4]),
+                            "imgs" : str(rows[count][5]),
+                            "lvmin" : str(rows[count][6]),
+                            "dest" : str(rows[count][7])
+                        }})
+
                         count += 1
-                        
+
                     for coin in await self.db.fetch(f'SELECT coin FROM users WHERE id = (\'{uMember.id}\')'):
                         if coin[0] == None:
                             coin[0] = 0
@@ -78,17 +67,18 @@ class Shop(commands.Cog, name='Loja', description='Comandos de Opções Loja'):
 
                         buffer = utilities.shop.drawloja(total, itens, page, coin, BytesIO(userImg)) #byteImg
 
-                    await ctx.reply(file=dFile(fp=buffer, filename='lojinha.png'), delete_after=30)
+
+                    await ctx.send(file=dFile(fp=buffer, filename='lojinha.png'), delete_after=30)
                     await ctx.message.delete()
 
-                else:    
-                    await ctx.reply(f'{uMember.mention}, parece que ainda não temos nenhum item comprável.', delete_after=5)
+                else:
+                    await ctx.send(f'{uMember.mention}, parece que ainda não temos nenhum item comprável.', delete_after=5)
     @loja.error
     async def loja_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
-            await ctx.send("```Só um usuário pode usar esse comando por vez, por favor aguarde 3 segundos.```", delete_after=5) 
-    
-    
+            await ctx.send("```Só um usuário pode usar esse comando por vez, por favor aguarde 3 segundos.```", delete_after=5)
+
+
     #   Comprar
     @commands.command(name='comprar', help='Ao digitar s.comprar <ID-DO-ITEM>, efetua a compra de um item utilizando o ID deste na loja.', aliases=["buy", "compra"])
     async def comprar(self, ctx, id:int) -> None:
@@ -114,13 +104,13 @@ class Shop(commands.Cog, name='Loja', description='Comandos de Opções Loja'):
                             elif item_type == 'Ticket':
                                 tipo = "o ticket"
                                 esstipo = "esse ticket"
-                            
+
                             emb = discord.Embed(title='Bela compra!',
                                         description=f'Você acaba de comprar {tipo} {item_name}!',
                                         color=discord.Color.green()).set_footer(
                                             text='Para equipar em seu perfil, basta digitar:\n'
                                                 's.equipar')
-                                
+
                             if inv[0][1] is not None:
                                 invent = str(inv[0][1])
                                 if str(id) in invent.split(","):
@@ -159,7 +149,7 @@ class Shop(commands.Cog, name='Loja', description='Comandos de Opções Loja'):
         if item:
             name = item[0][0]
             type = item[0][1]
-            
+
             inv = await self.db.fetch(f"SELECT inv FROM users WHERE id='{ctx.author.id}'")
             if inv:
                 inv = str(inv[0][0]).split(",")
@@ -171,18 +161,18 @@ class Shop(commands.Cog, name='Loja', description='Comandos de Opções Loja'):
                         await self.db.fetch(f"UPDATE users SET title=(\'{id}\') WHERE id='{ctx.author.id}'")
                         await ctx.send("{} {} equipada!".format(type.capitalize(), name.title()), delete_after=5)
             else:
-                raise MissingRequiredArgument   
+                raise MissingRequiredArgument
         else:
             raise BadArgument
-        
+
     @equipar.error
     async def equipar_error(self, ctx, error):
         if isinstance(error, commands.BadArgument):
             await ctx.send("```Esse item não existe.```", delete_after=5)
         if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send("```Você não tem esse item.```", delete_after=5)          
-                  
-        
+            await ctx.send("```Você não tem esse item.```", delete_after=5)
+
+
 def setup(bot) -> None:
     bot.add_cog(Shop(bot))
 

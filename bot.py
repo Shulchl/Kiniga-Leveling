@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from __future__ import annotations
 
 from base.struct import Config
@@ -14,7 +16,7 @@ intents = discord.Intents().all()
 
 class Bot(commands.Bot):
     def __init__(self):
-            
+
         super().__init__(
             intents=intents,
             command_prefix=commands.when_mentioned_or('s.'),
@@ -23,7 +25,7 @@ class Bot(commands.Bot):
             ),
         DiscordComponents(self),
         self.remove_command('help')
-                                
+
 
         with open('config.json', 'r', encoding='utf-8') as f:
             self.cfg = Config(json.loads(f.read()))
@@ -34,16 +36,16 @@ class Bot(commands.Bot):
                 self.load_extension(cog)
             except Exception as e:
                 print(f'Error occured while cog "{cog}" was loaded.\n{e}')
-        
+
 
     def cog_unload(self):
       self.feed.close()
-      return  
-         
+      return
+
     def startup(self):
         self.run(self.cfg.bot_token)
         self.feed.start()
-    
+
     @tasks.loop(minutes = 5)
     async def feed(self):
         async with aiohttp.ClientSession() as session:
@@ -57,8 +59,8 @@ class Bot(commands.Bot):
                         for l in links.find_all('a', href=True):
                             try:
                                 emoji = self.get_emoji(id=785300070857572372)
-                                channel = discord.utils.get(self.get_all_channels(), 
-                                                            guild__name=self.cfg.guild, 
+                                channel = discord.utils.get(self.get_all_channels(),
+                                                            guild__name=self.cfg.guild,
                                                             id=self.cfg.chat_cmds)
                                 messages = await channel.history(limit=1).flatten()
                                 messages.reverse()
@@ -68,10 +70,10 @@ class Bot(commands.Bot):
                                 member = channel.guild.get_member(741770490598653993)
                                 webhooks = await channel.webhooks()
                                 webhook = discord.utils.get(webhooks, name = "Capitulos Recentes")
-                                
+
                                 if webhook is None:
                                     webhook = await channel.create_webhook(name = "Capitulos Recentes")
-                                
+
                                 for i, message in enumerate(messages):
                                     message = message.content
                                     if message == cont:
@@ -82,7 +84,7 @@ class Bot(commands.Bot):
                         else: pass
                     except Exception as e: raise e
                 else: pass
-    
+
     @feed.before_loop  # wait for the bot before starting the task
     async def before_send(self):
         await self.wait_until_ready()
