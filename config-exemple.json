@@ -1,0 +1,79 @@
+{
+    "bot_token": "",
+    "postgresql_user": "postgres",
+    "postgresql_password": "",
+    "min_message_xp": 30,
+    "max_message_xp": 50,
+    "coinsmin": 5,
+    "coinsmax": 15,
+    "lucky": 5,
+    "prefix": "s.",
+    "bdayloop": false,
+    "guild": "Spinovel - Equipe",
+    "chat_cmds": 943945066836283392,
+    "setup": false,
+    "ranks": [
+        "Novato",
+        "Soldado Nadir",
+        "Sargento Aurora",
+        "Tenente Z\u00c3\u00aanite",
+        "Capit\u00c3\u00a3o Solar",
+        "Major Solar",
+        "Coronel Umbra",
+        "General Blazar",
+        "Marechal Quasar"
+    ],
+    "colors": [
+        [
+            189,
+            142,
+            71
+        ],
+        [
+            221,
+            180,
+            100
+        ],
+        [
+            101,
+            187,
+            254
+        ],
+        [
+            193,
+            134,
+            250
+        ],
+        [
+            253,
+            153,
+            123
+        ],
+        [
+            255,
+            174,
+            80
+        ],
+        [
+            153,
+            197,
+            155
+        ],
+        [
+            240,
+            114,
+            90
+        ],
+        [
+            197,
+            141,
+            248
+        ]
+    ],
+    "trash": [
+        "uma meia",
+        "um sapato",
+        "um saco pl\u00c3\u00a1stico",
+        "uma rede"
+    ]
+}
