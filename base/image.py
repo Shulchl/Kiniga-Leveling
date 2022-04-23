@@ -8,24 +8,21 @@
 
 import os
 import random
-from PIL import Image
-from PIL import ImageFilter
-from PIL.ImageDraw import Draw
-from PIL.ImageFont import truetype
-
 from io import BytesIO
 
 import matplotlib.font_manager as fm
+from PIL import Image, ImageFilter
+from PIL.ImageDraw import Draw
+from PIL.ImageFont import truetype
 
 DATA_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
 DEFAULT_FONTS = [os.path.join(DATA_DIR, 'DroidSansMono.ttf')]
 
 __all__ = ['ImageCaptcha']
 
-
-table  =  []
-for  i  in  range( 256 ):
-    table.append( i * 1.97 )
+table = []
+for i in range(256):
+    table.append(i * 1.97)
 
 
 class _Captcha(object):

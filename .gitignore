@@ -1,4 +1,4 @@
-
+.idea
 config.json
 config.json~
 cogs/__pycache__/user.cpython-38.pyc
@@ -10,4 +10,10 @@ base/__pycache__/utilities.cpython-38.pyc
 base/__pycache__/struct.cpython-38.pyc
 base/__pycache__/image.cpython-38.pyc
 base/__pycache__/functions.cpython-38.pyc
+*.xml
+.idea/discord.xml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/Kiniga Leveling.iml
+*.pyc
 .src
+log.txt

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 class Config:
     def __init__(self, cfg: dict) -> None:
         self.bot_token = cfg['bot_token']
@@ -14,9 +15,7 @@ class Config:
         self.bdayloop = cfg['bdayloop']
         self.guild = cfg['guild']
         self.chat_cmds = cfg['chat_cmds']
-        self.coin_max = cfg['coin_max']
         self.setup = cfg['setup']
         self.ranks = cfg['ranks']
         self.colors = cfg['colors']
         self.trash = cfg['trash']
-        

@@ -289,15 +289,15 @@ class Rank:
             # update the y position so that we can use it for next line
             y = y + line_height
 
-        # Spark
+        # ori
         bg_draw.rounded_rectangle(
-            [(488, 490), (488+407, 490+162)], 25, fill=(0, 45, 62))  # spark
+            [(488, 490), (488+407, 490+162)], 25, fill=(0, 45, 62))  # ori
 
-        spark = Image.open("src/extra/spark.png")
-        spark = spark.resize((140, 140), Image.NEAREST)
-        bg.paste(spark, (465, 505), spark)
+        ori = Image.open("src/extra/ori.png")
+        ori = ori.resize((140, 140), Image.NEAREST)
+        bg.paste(ori, (465, 505), ori)
         value = f"{int(coin):,}".replace(",", ".")
-        bg_draw.text((575, 525), "Sparks",
+        bg_draw.text((575, 525), "oris",
                      font=self.class_font_montserrat, fill=(212, 255, 236))
         bg_draw.text((575, 575), value,
                      font=self.class_font_bold_spark_bday, fill=(0, 247, 132))
@@ -670,16 +670,16 @@ class Shop:
                 list_itens = list(itens[count-1].values())
                 #print(list_itens)
                 if count == 1:
-                    spark_pos = 25
+                    ori_pos = 25
                     altura = 180
                     larg_inic = 0
                 else:
                     larg_inic = 420*(count-1)
                     altura = 180
                     if count == 3:
-                        spark_pos = 432*(count-1)
+                        ori_pos = 432*(count-1)
                     else:
-                        spark_pos = 446*(count-1)
+                        ori_pos = 446*(count-1)
 
                 if larg_inic <= 840:
                     # 1 row
@@ -733,23 +733,23 @@ class Shop:
                     else:
                         bg.paste(itemImg, (35+105+larg_inic, 290), itemImg)
 
-                    spark = Image.open("src/extra/spark.png")
+                    ori = Image.open("src/extra/ori.png")
 
-                    spark = spark.resize((70, 71), Image.NEAREST)
-                    bg.paste(spark, (spark_pos, 467), spark)
+                    ori = ori.resize((70, 71), Image.NEAREST)
+                    bg.paste(ori, (ori_pos, 467), ori)
 
                     count += 1
                 elif larg_inic > 840 and ccount <= 3:
 
                     if count == 4:
                         larg_baixo = 0
-                        spark_pos_baixo = 25
+                        ori_pos_baixo = 25
                     else:
                         larg_baixo = 420*(ccount)
                         if count == 6:
-                            spark_pos_baixo = 432*2
+                            ori_pos_baixo = 432*2
                         else:
-                            spark_pos_baixo = 446*(ccount)
+                            ori_pos_baixo = 446*(ccount)
 
                     altura = 570
 
@@ -796,9 +796,9 @@ class Shop:
                     else:
                         bg.paste(itemImg, (35+110+larg_baixo, 682), itemImg)
                         
-                    spark = Image.open("src/extra/spark.png")
-                    spark = spark.resize((70, 71), Image.NEAREST)
-                    bg.paste(spark, (spark_pos_baixo, 855), spark)
+                    ori = Image.open("src/extra/ori.png")
+                    ori = ori.resize((70, 71), Image.NEAREST)
+                    bg.paste(ori, (ori_pos_baixo, 855), ori)
 
                     count += 1
                     ccount += 1
@@ -810,16 +810,16 @@ class Shop:
                 list_itens = list(itens[truecount].values())
                 print(list_itens)
                 if count == 1:
-                    spark_pos = 25
+                    ori_pos = 25
                     altura = 180
                     larg_inic = 0
                 else:
                     larg_inic = 420*(count-1)
                     altura = 180
                     if count == 3 or count == 6:
-                        spark_pos = 432*(count-1)
+                        ori_pos = 432*(count-1)
                     else:
-                        spark_pos = 446*(count-1)
+                        ori_pos = 446*(count-1)
                     
 
                 if larg_inic <= 840:
@@ -876,10 +876,10 @@ class Shop:
                     else:
                         bg.paste(itemImg, (35+110+larg_inic, 290), itemImg)
 
-                    spark = Image.open("src/extra/spark.png")
+                    ori = Image.open("src/extra/ori.png")
 
-                    spark = spark.resize((70, 71), Image.NEAREST)
-                    bg.paste(spark, (spark_pos, 467), spark)
+                    ori = ori.resize((70, 71), Image.NEAREST)
+                    bg.paste(ori, (ori_pos, 467), ori)
 
                     count += 1
                     truecount +=1
@@ -887,13 +887,13 @@ class Shop:
 
                     if count == 4:
                         larg_baixo = 0
-                        spark_pos_baixo = 25
+                        ori_pos_baixo = 25
                     else:
                         larg_baixo = 420*(ccount)
                         if count == 3 or count == 6:
-                            spark_pos_baixo = 432*(count-1)
+                            ori_pos_baixo = 432*(count-1)
                         else:
-                            spark_pos_baixo = 446*(count-1)
+                            ori_pos_baixo = 446*(count-1)
 
                     altura = 570
 
@@ -940,17 +940,17 @@ class Shop:
                     else:
                         bg.paste(itemImg, (35+110+larg_baixo, 682), itemImg)
                         
-                    spark = Image.open("src/extra/spark.png")
-                    spark = spark.resize((70, 71), Image.NEAREST)
-                    bg.paste(spark, (spark_pos_baixo, 855), spark)
+                    ori = Image.open("src/extra/ori.png")
+                    ori = ori.resize((70, 71), Image.NEAREST)
+                    bg.paste(ori, (ori_pos_baixo, 855), ori)
 
                     count += 1
                     ccount += 1
                     truecount += 1
                     
-        bg_draw.text((75, 54), "Suas Sparks",
+        bg_draw.text((75, 54), "Suas oris",
                      font=self.class_font_montserrat, fill=(212, 255, 236))
-        bg.paste(spark, (19, 56), spark)
+        bg.paste(ori, (19, 56), ori)
         value = f"{int(coin):,}".replace(",", ".")
         bg_draw.text((75, 90), value,
                      font=self.class_font_montserrat, fill=(0, 247, 132))
