@@ -1,64 +1,77 @@
-from __future__ import annotations
-
 import json
 import logging
+import logging.handlers
 import os
 
 import aiohttp
 import discord
 import asyncio
-from bs4 import BeautifulSoup
-from discord.ext import commands, tasks
-from discord import app_commands
+from discord.ext import commands
 
 from base.struct import Config
 
-logging.basicConfig(filename='log.log', encoding='utf-8', level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+TEST_GUILD = discord.Object(id=943170102759686174)
 
-intents = discord.Intents.all()
+def log_handler() -> logging.Logger:
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    handler = logging.handlers.RotatingFileHandler(
+        filename='log.log',
+        encoding='utf-8',
+        maxBytes=32 * 1024 * 1024,  # 32 MiB
+        backupCount=5,  # Rotaciona em 5 arquivos
+    )
+    dt_fmt = '%Y-%m-%d %H:%M:%S'
+    formatter = logging.Formatter('[{asctime}] [{levelname}] {name}: {message}', dt_fmt, style='{')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    return logger
+log = log_handler()
 
-
-class Bot(commands.Bot):
-    def __init__(self):
+class SpinovelBot(commands.Bot):
+    def __init__(self) -> None:
+        intents = discord.Intents.all()
+        atividade = discord.Activity(type=discord.ActivityType.watching,
+                                      name="Kiniga")
         super().__init__(
             intents=intents,
             command_prefix=commands.when_mentioned_or('s.'),
             description='Kiniga Brasil',
-            activity=discord.Activity(type=discord.ActivityType.watching,
-                                      name="Kiniga")
+            activity= atividade
         )
 
         with open('config.json', 'r', encoding='utf-8') as f:
             self.cfg = Config(json.loads(f.read()))
 
+    async def load_cogs(self) -> None:
+        for filename in os.listdir('./cmds'):
+            if filename.endswith('.py'):
+                try:
+                    await self.load_extension(f'cmds.{filename[ :-3 ]}')
+                except Exception as e:
+                    print(f'Ocorreu um erro enquanto o cog "{filename}" era carregado.\n{e}')
+                    log.error(e)
 
-bot = Bot()
+    async def setup_hook(self) -> None:
+        print(f'Logado como {self.user} (ID: {self.user.id}) usando discord.py {discord.__version__}')
+        print('------')
+        await self.load_cogs()
+        self.tree.copy_global_to(guild=TEST_GUILD)
+        await self.tree.sync(guild=TEST_GUILD)
 
-tree = bot.tree
-TEST_GUILD = discord.Object(id=943170102759686174)
+    async def close(self) -> None:
+        log.warning("desligando o bot...")
+        await super().close()
+        await self.session.close()
 
-
-@bot.event
-async def on_ready():
-    print(f'Logged in as {bot.user} (ID: {bot.user.id})')
-    print('------')
-
-    #tree.copy_global_to(guild=TEST_GUILD)
-    #await tree.sync(guild=TEST_GUILD)
-
-    for filename in os.listdir('./cmds'):
-        if filename.endswith('.py'):
-            try:
-                await bot.load_extension(f'cmds.{filename[ :-3 ]}')
-            except Exception as e:
-                print(f'Error occured while cog "{filename}" was loaded.\n{e}')
-                logging.error(e)
-
-
-async def main():
+async def main() -> None:
+    bot = SpinovelBot()
     async with aiohttp.ClientSession() as session, bot:
         bot.session = session
         await bot.start(bot.cfg.bot_token)
-asyncio.run(main())
 
-# bot.start(bot.cfg.bot_token)
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        log.warning("bot foi desligado usando ctrl+c no terminal!")
