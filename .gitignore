@@ -1,0 +1,10 @@
+*.log
+*.png
+config.json
+=4.1.0
+.vscode
+.pytest_cache
+.idea
+base/utilities.txt
+base/__pycache__
+cmds/__pycache__
