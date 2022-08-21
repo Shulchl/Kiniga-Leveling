@@ -427,35 +427,35 @@ class Mod(commands.Cog, name='Moderação'):
             async with session.get(f"{ctx.author.display_avatar.url}?size=1024?format=png") as resp:
                 profile_bytes = await resp.read()
 
-        
+        if not opt:
+            opt = "Nivel"
 
         if opt == "Ori":
             rows = await self.db.fetch(
-                        "SELECT id, coin FROM users ORDER BY coin Desc")
+                        "SELECT id, coin FROM users ORDER BY coin Desc LIMIT 10")
         elif opt == "Nivel":
             rows = await self.db.fetch(
-                        "SELECT id, rank, xptotal FROM users ORDER BY xptotal Desc")
+                        "SELECT id, rank, xptotal FROM users ORDER BY xptotal Desc LIMIT 10")
         if rows:
-            user_position = 0
-            count = 0
             # if (total/3) > int(total/3):
             #    return await ctx.send(f"O limite de páginas é {int(total/3)}", delete_after=5)
             # elif (total/3) < int(total/3):
             #    return await ctx.send(f"O limite de páginas é {int(total/3)+1}", delete_after=5)
             try:
                 users = []
-                while count < len(rows):
+                user_position = 0
+                count = 0
+                for i in range(len(rows)):
                     user = ctx.guild.get_member(int(rows[count][0]))
-
-                    try:
-                        user = user.name
+                    if user:
                         avatar = user.display_avatar.url
-                    except:
+                        user = user
+                        if user == ctx.author.name:
+                            user_position = i
+                        
+                    else:
                         user = "Desconhecido#0000"
                         avatar = "src/imgs/extra/spark.png"
-
-                    if user == ctx.author.name:
-                        user_position = count
                     
                     rank_image = await self.db.fetch(f"SELECT badges FROM ranks WHERE lv <= {rows[count][1]} ORDER BY lv Desc LIMIT 1")
                     if rank_image:
