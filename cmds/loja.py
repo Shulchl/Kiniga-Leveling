@@ -61,7 +61,6 @@ class Shop(commands.Cog):
         img = []
         paths = []
 
-        print(value)
 
         if value[4] != '':
             imgs = value[4].split(",")
@@ -74,7 +73,6 @@ class Shop(commands.Cog):
         else:
             valor = int(value[2])
 
-        print(value)
         try:
             if tipo == "Moldura":
                 img = [ f'src/imgs/molduras/molduras-loja/{tipo}-{name}.png',
@@ -103,7 +101,6 @@ class Shop(commands.Cog):
                     del response
                     count += 1
                 
-                print(f"{count} / {len(paths)} imagens salvas")
 
             except Exception as i:
                 print(i)
@@ -115,7 +112,6 @@ class Shop(commands.Cog):
                         "INSERT INTO itens (name, type, value, img, img_profile, imgd, lvmin, canbuy) "
                         "VALUES (\'{}\', \'{}\', {}, \'{}\', \'{}\', \'{}\', 0, True) ON CONFLICT (name)"
                         " DO NOTHING".format(name, tipo, valor, img_loja, img_perfil, img_round_title))
-                    print(f"Informações salvas na DB")
                 except Exception as e:
                     return e
 

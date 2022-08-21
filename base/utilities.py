@@ -659,6 +659,17 @@ class Shop:
         # output = ImageOps.fit(userImg, mask.size, centering=(0.5, 0.5))
         # output.putalpha(mask)
 
+
+        # self.gradientLeft(1.2, 1, bg)
+        # self.gradientRight(1.2, 1, bg)
+        # quad1 = Image.new(mode = "RGB", size = (311, 110), color = (0, 56, 76))
+        # bg.paste(quad1, (0, 30))
+        # quad2 = Image.new(mode = "RGB", size = (311, 110), color = (0, 56, 76))
+        # bg.paste(quad2, (969, 30))
+
+        # bg_draw.rounded_rectangle([(25, 30), (1245, 150)], 25, fill=(0, 56, 76))
+
+        # Titles
         
 
         # Itens
@@ -670,7 +681,6 @@ class Shop:
         total_page = total/6 if total/6 == int() else int(total/6+1)
         images = []
         count = 0
-        ccount = 0
         for i in range(total_page):
             bg = Image.new('RGBA', (1280, 950), (0, 45, 62, 255))
             bg_draw = ImageDraw.Draw(bg)
@@ -682,35 +692,21 @@ class Shop:
             profileFundo = Image.composite(userImg_Big, bg, mask)
             profileBlur = profileFundo.filter(ImageFilter.GaussianBlur(radius=10))
             bg.paste(profileBlur, (0, 0))
-            # self.gradientLeft(1.2, 1, bg)
-            # self.gradientRight(1.2, 1, bg)
-            # quad1 = Image.new(mode = "RGB", size = (311, 110), color = (0, 56, 76))
-            # bg.paste(quad1, (0, 30))
-            # quad2 = Image.new(mode = "RGB", size = (311, 110), color = (0, 56, 76))
-            # bg.paste(quad2, (969, 30))
-
-            # bg_draw.rounded_rectangle([(25, 30), (1245, 150)], 25, fill=(0, 56, 76))
-
-            # Titles
             bg_draw.text((640, 90), "LOJA", font=self.class_font_montbold,
-                         anchor="ms", fill=(219, 239, 255))
-            for t in range(6):
-                if count <= total:
-                    larg_inic = 420 * ( count )
-                    if larg_inic < 0:
-                        larg_inic = 0
+                     anchor="ms", fill=(219, 239, 255))
+            
+            tcount = 0
+            ccount = 0
+            if tcount == 3:
+                tcount = 0
+                ccount = 0
 
-                    
+            for t in range(7):
 
-                    larg_baixo = 420 * ( count - 4)
-                    if larg_baixo < 0:
-                        larg_baixo = 0
+                if count < total:
+                    list_itens = list(itens[ count ].values())
+                    #print("Não raiz" if (int(count) ** 0.5) != 3 else "Raiz")
 
-                    
-
-                    ori_pos_baixo = 436 * ( t - 3 )
-
-                    list_itens = list(itens[ count -1 ].values())
                     if int(list_itens[ 0 ][ 'value' ]) <= int(coin):
                         valueColor = (0, 247, 132)
                     else:
@@ -722,12 +718,15 @@ class Shop:
                     # print(list_itens)
                     ori_pos = 15
                     altura = 180
-                    altura_baixo = 570
                     largura = 382
+                    larg_inic = 420 * ccount
+                    larg_baixo = 420 * tcount
 
+                    if larg_baixo > 840:
+                        break
 
                     if larg_inic <= 840:
-                        print(larg_inic)
+                        #print(f"Item {count} Posição {larg_inic}")
                         # 1 row
                         bg_draw.rounded_rectangle(
                             [ (37 + larg_inic, altura), ((larg_inic + largura - 2), 320 + altura) ], 25,
@@ -788,17 +787,24 @@ class Shop:
 
                         ori = oriOriginal.resize((70, 71), Image.NEAREST)
                         bg.paste(ori, (ori_pos, 467), ori)
+                        ccount += 1
 
-                    else:
-                        print(larg_baixo)
+                    elif larg_baixo <= 840:
+
+
+                        #print(f"Item {count} Posição {larg_baixo}")
+
+                        ori_pos_baixo = 436 * tcount
+
+                        altura = 570
 
                         bg_draw.rounded_rectangle(
-                            [ (37 + larg_baixo, altura_baixo), ((larg_baixo + largura - 2), 320 + altura_baixo) ], 25,
+                            [ (37 + larg_baixo, altura), ((larg_baixo + largura - 2), 320 + altura) ], 25,
                             fill=(0, 247, 132))
                         bg_draw.rounded_rectangle(
-                            [ (35 + larg_baixo, altura_baixo), ((larg_baixo + largura), 315 + altura_baixo) ], 25, fill=(0, 45, 62))
+                            [ (35 + larg_baixo, altura), ((larg_baixo + largura), 315 + altura) ], 25, fill=(0, 45, 62))
                         bg_draw.rounded_rectangle(
-                            [ (30 + larg_baixo, altura_baixo), ((larg_baixo + largura) + 5, 95 + altura_baixo) ], 25, fill=(0, 56, 76))
+                            [ (30 + larg_baixo, altura), ((larg_baixo + largura) + 5, 95 + altura) ], 25, fill=(0, 56, 76))
 
                         if list_itens[ 0 ][ 'dest' ] == "False":
                             color = (161, 177, 191)
@@ -834,16 +840,15 @@ class Shop:
                         bg_draw.text((larg_baixo + largText + 135, 868),
                                      f"    #{list_itens[ 0 ][ 'id' ]}", font=self.class_font_montbold_ori,
                                      fill=(0, 198, 244))
+
                         if lar[ 0 ] > 250:
                             bg.paste(
                                 itemImg, (int((larg_baixo + 20) + ((largura - lar[ 0 ]) / 2)), 735), itemImg)
                         else:
                             bg.paste(itemImg, (35 + 110 + larg_baixo, 682), itemImg)
-
-                    
-
                         ori = oriOriginal.resize((70, 71), Image.NEAREST)
                         bg.paste(ori, (ori_pos_baixo, 855), ori)
+                        tcount += 1
 
                     count += 1
             bg_draw.text((100, 54), "Suas oris",
@@ -856,13 +861,11 @@ class Shop:
             bg_draw.text((1063, 55), "Página Atual",
                          font=self.class_font_montserrat, fill=(161, 177, 191))
 
-            bg_draw.text((1200, 90), "{}".format(i+1),
+            bg_draw.text((1200, 90), "{}".format(i),
                          font=self.class_font_montbold_ori, fill=(219, 239, 255))
             # SUBTITLE
             bg_draw.text((630, 135), "Use os botões abaixo par navegar entre as páginas.",
-                         font=self.class_font_opensans, anchor="ms", fill=(219, 239, 255))
-
-            ccount += 1
+                         font=self.class_font_opensans, anchor="ms", fill=(219, 239, 255))            
             
             #bg.paste(output, (100, 193), output)
 
@@ -877,10 +880,6 @@ class Shop:
                 raise i
             else:
                 images.append(f"{u}.png")
-
-
-        print("Done.")
-        print(ccount)
         return images
 
 class Top:
