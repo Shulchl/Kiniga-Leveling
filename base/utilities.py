@@ -67,19 +67,19 @@ class Database:
         try:
             await self.conn.fetch(
                 "INSERT INTO itens (name, type, value, img, imgd, img_profile, lvmin) "
-				"VALUES ('Novato','Moldura',1000,'src/molduras-loja/#1.png',"
-				"'src/molduras/molduras-perfil/titulos/#1E.png','src/molduras/molduras-perfil/bordas/#1.png', 0 )"
+                "VALUES ('Novato','Moldura',1000,'src/molduras-loja/#1.png',"
+                "'src/molduras/molduras-perfil/titulos/#1E.png','src/molduras/molduras-perfil/bordas/#1.png', 0 )"
                 " ON CONFLICT (name) DO NOTHING")
                 
             await self.conn.fetch(
-				"INSERT INTO itens (name, type, value, img, imgd, img_profile, lvmin) "
-				"VALUES ('Soldado Nadir','Moldura', 500000,'src/molduras-loja/#1.png',"
-				" 'src/molduras/molduras-perfil/titulos/#1E.png', 'src/molduras/molduras-perfil/bordas/#1.png', 10) ON CONFLICT (name) DO NOTHING")
+                "INSERT INTO itens (name, type, value, img, imgd, img_profile, lvmin) "
+                "VALUES ('Soldado Nadir','Moldura', 500000,'src/molduras-loja/#1.png',"
+                " 'src/molduras/molduras-perfil/titulos/#1E.png', 'src/molduras/molduras-perfil/bordas/#1.png', 10) ON CONFLICT (name) DO NOTHING")
             
             await self.conn.fetch(
-				"INSERT INTO itens (name, type, value, img, imgd, img_profile, lvmin) "
-				"VALUES ('Sargento Aurora','Moldura', 1000000,'src/molduras-loja/#2.png',"
-				" 'src/molduras/molduras-perfil/titulos/#2E.png', 'src/molduras/molduras-perfil/bordas/#2.png', 20) ON CONFLICT (name) DO NOTHING")
+                "INSERT INTO itens (name, type, value, img, imgd, img_profile, lvmin) "
+                "VALUES ('Sargento Aurora','Moldura', 1000000,'src/molduras-loja/#2.png',"
+                " 'src/molduras/molduras-perfil/titulos/#2E.png', 'src/molduras/molduras-perfil/bordas/#2.png', 20) ON CONFLICT (name) DO NOTHING")
 
             await self.conn.fetch(
                 "INSERT INTO itens (name, type, value, img, imgd, img_profile, lvmin) "
@@ -647,22 +647,7 @@ class Shop:
             plain = plain.convert('RGBA')
 
         userImg_Big = plain.copy()
-        # userImg = plain.resize((342, 342))
 
-        # bigsize = (userImg.size[ 0 ] * 3, userImg.size[ 1 ] * 3)
-        # mask = Image.new('L', bigsize, 0)
-        # draw = ImageDraw.Draw(mask)
-        # draw.ellipse((0, 0) + bigsize, fill=255)
-        # mask = mask.resize(userImg.size, Image.ANTIALIAS)
-        # userImg.putalpha(mask)
-
-        # output = ImageOps.fit(userImg, mask.size, centering=(0.5, 0.5))
-        # output.putalpha(mask)
-
-        
-
-        # Itens
-        # altura = 190*3
         oriOriginal = Image.open(r"src\imgs\extra\ori.png")
         starOriginal = Image.open(r"src\imgs\extra\Pin-Star.png")
 
@@ -670,7 +655,6 @@ class Shop:
         total_page = total/6 if total/6 == int() else int(total/6+1)
         images = []
         count = 0
-        ccount = 0
         for i in range(total_page):
             bg = Image.new('RGBA', (1280, 950), (0, 45, 62, 255))
             bg_draw = ImageDraw.Draw(bg)
@@ -682,35 +666,20 @@ class Shop:
             profileFundo = Image.composite(userImg_Big, bg, mask)
             profileBlur = profileFundo.filter(ImageFilter.GaussianBlur(radius=10))
             bg.paste(profileBlur, (0, 0))
-            # self.gradientLeft(1.2, 1, bg)
-            # self.gradientRight(1.2, 1, bg)
-            # quad1 = Image.new(mode = "RGB", size = (311, 110), color = (0, 56, 76))
-            # bg.paste(quad1, (0, 30))
-            # quad2 = Image.new(mode = "RGB", size = (311, 110), color = (0, 56, 76))
-            # bg.paste(quad2, (969, 30))
-
-            # bg_draw.rounded_rectangle([(25, 30), (1245, 150)], 25, fill=(0, 56, 76))
-
-            # Titles
             bg_draw.text((640, 90), "LOJA", font=self.class_font_montbold,
-                         anchor="ms", fill=(219, 239, 255))
-            for t in range(6):
-                if count <= total:
-                    larg_inic = 420 * ( count )
-                    if larg_inic < 0:
-                        larg_inic = 0
+                     anchor="ms", fill=(219, 239, 255))
+            
+            tcount = 0
+            ccount = 0
+            if tcount == 3:
+                tcount = 0
+                ccount = 0
 
-                    
+            for t in range(7):
 
-                    larg_baixo = 420 * ( count - 4)
-                    if larg_baixo < 0:
-                        larg_baixo = 0
+                if count < total:
+                    list_itens = list(itens[ count ].values())
 
-                    
-
-                    ori_pos_baixo = 436 * ( t - 3 )
-
-                    list_itens = list(itens[ count -1 ].values())
                     if int(list_itens[ 0 ][ 'value' ]) <= int(coin):
                         valueColor = (0, 247, 132)
                     else:
@@ -720,14 +689,20 @@ class Shop:
                         list_itens[ 0 ][ 'name' ]) == "Chave" else Image.open(list_itens[ 0 ][ 'img' ])
                     lar = (itemImg.size[ 0 ], itemImg.size[ 1 ])
                     # print(list_itens)
-                    ori_pos = 15
+
                     altura = 180
-                    altura_baixo = 570
                     largura = 382
 
+                    larg_inic = 420 * ccount
+                    larg_baixo = 420 * tcount
+
+                    ori_pos = 420 * ccount
+                    ori_pos_baixo = 420* tcount
+
+                    if larg_baixo > 840:
+                        break
 
                     if larg_inic <= 840:
-                        print(larg_inic)
                         # 1 row
                         bg_draw.rounded_rectangle(
                             [ (37 + larg_inic, altura), ((larg_inic + largura - 2), 320 + altura) ], 25,
@@ -788,17 +763,21 @@ class Shop:
 
                         ori = oriOriginal.resize((70, 71), Image.NEAREST)
                         bg.paste(ori, (ori_pos, 467), ori)
+                        ccount += 1
 
-                    else:
-                        print(larg_baixo)
+                    elif larg_baixo <= 840:
+
+
+
+                        altura = 570
 
                         bg_draw.rounded_rectangle(
-                            [ (37 + larg_baixo, altura_baixo), ((larg_baixo + largura - 2), 320 + altura_baixo) ], 25,
+                            [ (37 + larg_baixo, altura), ((larg_baixo + largura - 2), 320 + altura) ], 25,
                             fill=(0, 247, 132))
                         bg_draw.rounded_rectangle(
-                            [ (35 + larg_baixo, altura_baixo), ((larg_baixo + largura), 315 + altura_baixo) ], 25, fill=(0, 45, 62))
+                            [ (35 + larg_baixo, altura), ((larg_baixo + largura), 315 + altura) ], 25, fill=(0, 45, 62))
                         bg_draw.rounded_rectangle(
-                            [ (30 + larg_baixo, altura_baixo), ((larg_baixo + largura) + 5, 95 + altura_baixo) ], 25, fill=(0, 56, 76))
+                            [ (30 + larg_baixo, altura), ((larg_baixo + largura) + 5, 95 + altura) ], 25, fill=(0, 56, 76))
 
                         if list_itens[ 0 ][ 'dest' ] == "False":
                             color = (161, 177, 191)
@@ -834,16 +813,15 @@ class Shop:
                         bg_draw.text((larg_baixo + largText + 135, 868),
                                      f"    #{list_itens[ 0 ][ 'id' ]}", font=self.class_font_montbold_ori,
                                      fill=(0, 198, 244))
+
                         if lar[ 0 ] > 250:
                             bg.paste(
                                 itemImg, (int((larg_baixo + 20) + ((largura - lar[ 0 ]) / 2)), 735), itemImg)
                         else:
                             bg.paste(itemImg, (35 + 110 + larg_baixo, 682), itemImg)
-
-                    
-
                         ori = oriOriginal.resize((70, 71), Image.NEAREST)
                         bg.paste(ori, (ori_pos_baixo, 855), ori)
+                        tcount += 1
 
                     count += 1
             bg_draw.text((100, 54), "Suas oris",
@@ -860,9 +838,7 @@ class Shop:
                          font=self.class_font_montbold_ori, fill=(219, 239, 255))
             # SUBTITLE
             bg_draw.text((630, 135), "Use os botões abaixo par navegar entre as páginas.",
-                         font=self.class_font_opensans, anchor="ms", fill=(219, 239, 255))
-
-            ccount += 1
+                         font=self.class_font_opensans, anchor="ms", fill=(219, 239, 255))            
             
             #bg.paste(output, (100, 193), output)
 
@@ -877,10 +853,6 @@ class Shop:
                 raise i
             else:
                 images.append(f"{u}.png")
-
-
-        print("Done.")
-        print(ccount)
         return images
 
 class Top:

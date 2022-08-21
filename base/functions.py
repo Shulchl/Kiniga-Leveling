@@ -184,7 +184,8 @@ async def get_roles(member: discord.Member, guild, roles=[
                                                             943172687642132591,
                                                             943193084584402975,
                                                             943251043838468127,
-                                                            949805774484426783
+                                                            949805774484426783,
+                                                            1010184007394283630
                                                         ]):
     rr = []
     for role in member.roles:

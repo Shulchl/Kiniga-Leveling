@@ -41,7 +41,6 @@ class User(commands.Cog):
     #@longest_cooldown
     @app_commands.command(name='nivel', description='Monstrará a barra de progresso, bem como a medalha de seu nível.')
     @app_commands.describe(member='Marque o usuário para mostrar seu nível. (opcional)')
-    @app_commands.guilds(discord.Object(id=943170102759686174))
     async def nivel(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
         if member:
             uMember = member
@@ -104,7 +103,6 @@ class User(commands.Cog):
                 delete_after=5)
 
     @app_commands.command()
-    @app_commands.guilds(discord.Object(id=943170102759686174))
     async def getavatar(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
         if member:
             uMember = member
@@ -116,7 +114,6 @@ class User(commands.Cog):
             return await interaction.response.send_message("Não consegui pegar o avatar do usuário. Provavelmente é padrão do discord xD", ephemeral=True)
     
     @app_commands.command()
-    @app_commands.guilds(discord.Object(id=943170102759686174))
     async def getbanner(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
         if member:
             uMember = member
@@ -132,7 +129,6 @@ class User(commands.Cog):
             
             
     @app_commands.command(name='pescar')
-    @app_commands.guilds(discord.Object(id=943170102759686174))
     @activity_cooldown
     async def pescar(self, interaction: discord.Interaction):
         if interaction.user.id not in self.brake:
@@ -160,7 +156,6 @@ class User(commands.Cog):
     
 
     @app_commands.command(name='topori')
-    @app_commands.guilds(discord.Object(id=943170102759686174))
     @activity_cooldown
     async def topori(self, interaction: discord.Interaction):
         member = interaction.user
@@ -202,7 +197,6 @@ class User(commands.Cog):
 
     #   classe
     @app_commands.command(name='classes')
-    @app_commands.guilds(discord.Object(id=943170102759686174))
     @activity_cooldown
     async def classes(self, interaction: discord.Interaction):
         await self.db.fetch(
@@ -236,7 +230,6 @@ class User(commands.Cog):
 
 #    @activity_cooldown
     @app_commands.command(name='info')
-    @app_commands.guilds(discord.Object(id=943170102759686174))
     async def info(self, interaction: discord.Interaction, *, content: str) -> None:
         info = "".join(content)
         size = len(info)
@@ -263,7 +256,6 @@ class User(commands.Cog):
                 error, ephemeral=True)
 
     @app_commands.command(name='delinfo')
-    @app_commands.guilds(discord.Object(id=943170102759686174))
     @activity_cooldown
     async def delinfo(self, interaction: discord.Interaction) -> None:
         await self.db.fetch(f"UPDATE users SET info = (\'\') WHERE id = ('{interaction.user.id}')")
@@ -271,7 +263,6 @@ class User(commands.Cog):
                                                 "Visualize utilizando d.perfil```", ephemeral=True)
 
     @app_commands.command(name='niver')
-    @app_commands.guilds(discord.Object(id=943170102759686174))
     @app_commands.checks.cooldown(1, 86400, key=lambda i: (i.guild_id, i.user.id))
     async def niver(self, interaction: discord.Interaction, niver: str) -> None:
 
@@ -292,14 +283,12 @@ class User(commands.Cog):
                 ephemeral=True)
 
     @app_commands.command(name='delniver')
-    @app_commands.guilds(discord.Object(id=943170102759686174))
     @longest_cooldown
     async def delniver(self, interaction: discord.Interaction) -> None:
         await self.db.fetch(f"UPDATE users SET birth = ('???') WHERE id = ('{interaction.user.id}')")
         await interaction.response.send_message("```Aniversário atualizado!```", ephemeral=True)
 
     @app_commands.command(name='inv')
-    @app_commands.guilds(discord.Object(id=943170102759686174))
     @activity_cooldown
     async def inv(self, interaction: discord.Interaction) -> None:
         invent = await self.db.fetch(f"SELECT inv FROM users WHERE id=('{interaction.user.id}')")
@@ -327,7 +316,6 @@ class User(commands.Cog):
             return await interaction.response.send_message("Você não tem nenhum item.", ephemeral=True)
 
     @app_commands.command(name='daily') #description='Use diariamente para receber recompensas incríveis'
-    @app_commands.guilds(discord.Object(id=943170102759686174))
     # @app_commands.checks.cooldown(1, 86400)
     async def daily(self, interaction: discord.Interaction):
         chest_itens = {'chest': 80, 'ori': 10, 'xp': 10}
@@ -516,4 +504,4 @@ class DailyConfirm(discord.ui.View):
 
 
 async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(User(bot), guilds=[ discord.Object(id=943170102759686174) ])
+    await bot.add_cog(User(bot), guilds=[ discord.Object(id=943170102759686174), discord.Object(id=1010183521907789977)])

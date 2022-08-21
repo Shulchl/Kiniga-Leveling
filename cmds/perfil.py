@@ -101,7 +101,6 @@ class Perfil(commands.Cog):
                     current_xp = 0
 
     @app_commands.command(name='perfil')
-    @app_commands.guilds(discord.Object(id=943170102759686174))
     async def perfil(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
 
         if member:
@@ -167,4 +166,4 @@ class Perfil(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(Perfil(bot), guilds=[ discord.Object(id=943170102759686174) ])
+    await bot.add_cog(Perfil(bot), guilds=[ discord.Object(id=943170102759686174), discord.Object(id=1010183521907789977)])

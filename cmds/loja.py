@@ -340,7 +340,7 @@ class Shop(commands.Cog):
                         #print(f"{type(botVar.oldImgs[0])} oldimg")
                         #print(f"{pageFile} pagefile")
                         pages = [os.path.join('./_temp/', i) for i in pages]
-                    view = Paginacao(pages,10, interaction.user)
+                    view = Paginacao(pages, 60, interaction.user)
                     await interaction.response.send_message(file=dFile(rf'{pages[0]}'), view=view, ephemeral=True)
                     out = interaction.edit_original_response
                     view.response = out
