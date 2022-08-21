@@ -29,7 +29,20 @@ from discord import Interaction, TextStyle
 from discord.ui import Modal, TextInput
 from discord.utils import maybe_coroutine
 
+from discord.ui import View
+from discord import ui, app_commands
+from typing import List
+
+import os
+
+from base.Pagination import Paginacao
+
 # CLASS SHOP
+
+botVar = commands.Bot
+
+botVar.shopItems = []
+botVar.oldImgs = []
 
 
 class Shop(commands.Cog):
@@ -250,18 +263,10 @@ class Shop(commands.Cog):
         if isinstance(error, commands.MissingRequiredArgument):
             await interaction.response.send_message("```Você não tem esse item.```", ephemeral=True)
 
-    async def nextpage(self, interaction, page, member: discord.Member):
-        # await app_commands.CommandTree.get_command(app_commands.tree, 'loja', interaction.guild)
-
-        # return await self.command(interaction, page, member)
-        cmd = self.bot.tree.get_command('loja', guild=interaction.guild)
-        # ctxo = await self.bot.tree.call(cmd)
-        return await cmd(interaction, page, member)
-
-    #   LOJA
+    
+        #   LOJA
     @app_commands.command(name='loja')
-    @app_commands.guilds(discord.Object(id=943170102759686174))
-    async def loja(self, interaction: discord.Interaction, page: int = None, member: discord.Member = None) -> None:
+    async def loja(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
         uMember = member
         if not uMember:
             uMember = interaction.user or interaction.guild.get_member(
@@ -276,21 +281,15 @@ class Shop(commands.Cog):
             d = re.sub(r"\D", "", str(t))
             total = int(d)
             if total > 0:
-                if not page:
-                    page = 1
 
                 rows = await self.db.fetch(
-                    "SELECT id, name, type, value, img, imgd, lvmin, dest FROM itens WHERE canbuy = True ORDER BY id "
+                    "SELECT id, name, type, value, img, imgd, lvmin, dest FROM itens WHERE canbuy = True ORDER BY value "
                     "Desc")
                 if rows:
                     count = 0
-                    # if (total/3) > int(total/3):
-                    #    return await ctx.send(f"O limite de páginas é {int(total/3)}", delete_after=5)
-                    # elif (total/3) < int(total/3):
-                    #    return await ctx.send(f"O limite de páginas é {int(total/3)+1}", delete_after=5)
                     try:
                         items = []
-                        while count < total:
+                        for i in range(total):
                             items.append({count: {
                                 "id": str(rows[count][0]),
                                 "name": str(rows[count][1]),
@@ -309,130 +308,43 @@ class Shop(commands.Cog):
                         if coin[0] is None:
                             coin[0] = 0
                         coin = coin[0]
-                    buffer = utilities.shop.drawloja(
-                        total, items, page, coin, BytesIO(userImg))  # byteImg
 
-                    page = int(page)
-                    # count = 1
-                    # opt = dict()
-
-                    # while ((((page+count)*6)-5) ** 0.5 <= total ** 0.5):
-                    #    opt = (
-                    #            SelectOption(
-                    #                label=str(count), value=str(count)
-                    #            )
-                    #        )
-                    #    count +=1
-
-                    # components = [
-                    #    Button(style=ButtonStyle.blue,
-                    #           label="Anterior",
-                    #           custom_id=str(page - 1),
-                    #           emoji=":rewind:",
-                    #           disabled=True if (page - 1 <= 0) else False
-                    #           ),
-                    #        Button(style=ButtonStyle.green,
-                    #           label="Atualizar",
-                    #           custom_id=str(page),
-                    #           emoji=":repeat:"
-                    #           ),
-                    #    Button(style=ButtonStyle.blue,
-                    #           label="Próxima",
-                    #            custom_id=str(page + 1),
-                    #           emoji=":fast_forward:",
-                    #           disabled=False if ((((page + 1) * 6) - 5) ** 0.5 <= total ** 0.5) else True
-                    #            ),
-                    # ]
+                    page = 0
                     async with interaction.channel.typing():
-                        try:
-                            buffer = utilities.shop.drawloja(total, items, page, coin,
-                                                                BytesIO(userImg)
-                                                            )
-                        except Exception as e:
-                            return interaction.response.send_message(f"```{e}```") 
-                        
-                        view = shopPageConfirm(total, page, coin, items)
-                        await interaction.response.send_message(file=dFile(
-                                                                        fp=buffer, 
-                                                                        filename='lojinha.png'
-                                                                    ), 
-                                                                    view=view,
-                                                                    ephemeral=True
-                                                                )   
-                    print("got view value")
+                        exist = os.path.exists(rf'./_temp/{botVar.oldImgs[0] if len(botVar.oldImgs) > 0 else "qualquercoisa"}')
+                        if botVar.shopItems == items and exist != False:
+                            items = botVar.shopItems
+                            pages = botVar.oldImgs
+                            pageFile = botVar.oldImgs[0]
+                        else:
+                            botVar.oldImgs = []
+                            pageFile = []
+                            total_page = total/6 if total/6 == int() else int(total/6+1)
+                            
 
-class shopPageConfirm(discord.ui.View):
+                            pages = utilities.shop.drawloja(
+                                                        total, 
+                                                        items, 
+                                                        coin,
+                                                        BytesIO(userImg)
+                                                    )
+                            #file = dFile(fp=i, filename=f'lojinha{page}.png')
+                            #pageFile.append(dFile(i))
+                            page += 1
+                            botVar.oldImgs = pages
+                            botVar.shopItems = items
 
-    def __init__(self, total, page, coin, items):
-        super().__init__(timeout=100.0)
-        self.items = items
-        self.total = total
-        self.pageNumb = int(page)
-        self.coin = coin
-        self.value = None
-        self.buffer = None
-        print("starting")
-        print(self.pageNumb)
+                            #print(f"{type(botVar.oldImgs[0])} oldimg")
+                            #print(f"{type(pageFile)} pagefile")
 
-    @discord.ui.button(label='Anterior', style=discord.ButtonStyle.green, emoji='⏪', custom_id='anterior:green',
-                       disabled=True) 
-    async def previousbutton(self, interaction: discord.Interaction, button: discord.ui.Button):
-        print("prev")
+                        #print(f"{type(botVar.oldImgs[0])} oldimg")
+                        #print(f"{pageFile} pagefile")
+                        pages = [os.path.join('./_temp/', i) for i in pages]
+                    view = Paginacao(pages,10, interaction.user)
+                    await interaction.response.send_message(file=dFile(rf'{pages[0]}'), view=view, ephemeral=True)
+                    out = interaction.edit_original_response
+                    view.response = out
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{interaction.user.avatar.replace(size=1024, format='png')}") as resp:
-                self.userImg = await resp.read()
-
-        if int(self.pageNumb ) == 0:
-            print("<<< Acabaram as páginas ")
-            self.stop()
-
-        if int(self.pageNumb -1 ) == 0:
-            button.disabled = True
-        else:
-            button.disabled = False
-
-        self.pageNumb -= 1
-        async with interaction.channel.typing():
-            self.buffer = utilities.shop.drawloja(self.total, self.items, self.pageNumb, self.coin, BytesIO(self.userImg))
-        await interaction.response.edit_message(attachments=[dFile(fp=self.buffer, filename='lojinha.png')], view=self)
-
-    @discord.ui.button(label='Atualizar', style=discord.ButtonStyle.primary, emoji='🔁', custom_id='atualizar:green',
-                       disabled=False)
-    async def actualizebutton(self, interaction: discord.Interaction, button: discord.ui.Button):
-        print("att")
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{interaction.user.avatar.replace(size=1024, format='png')}") as resp:
-                self.userImg = await resp.read()
-
-        async with interaction.channel.typing():
-            self.buffer = utilities.shop.drawloja(self.total, self.items, self.pageNumb, self.coin, BytesIO(self.userImg))
-        await interaction.response.edit_message(attachments=[dFile(fp=self.buffer, filename='lojinha.png')], view=self)
-
-        self.stop()
-
-    @discord.ui.button(label='Próximo', style=discord.ButtonStyle.green, emoji='⏩', custom_id='proxima:green',
-                       disabled= False)
-    async def nextbutton(self, interaction: discord.Interaction, button: discord.ui.Button):        
-        print("next")
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{interaction.user.avatar.replace(size=1024, format='png')}") as resp:
-                self.userImg = await resp.read()
-
-        self.value = False
-
-        if int(((self.pageNumb + 1) * 6) ** 0.8) <= self.total:
-            button.disabled = True
-        else:
-            button.disabled = False
-
-        self.pageNumb += 1
-
-        async with interaction.channel.typing():
-            self.buffer = utilities.shop.drawloja(self.total, self.items, self.pageNumb, self.coin, BytesIO(self.userImg))
-        await interaction.response.edit_message(attachments=[dFile(fp=self.buffer, filename='lojinha.png')], view=self)
 
 
 class SimpleModalWaitFor(Modal):
@@ -539,4 +451,4 @@ class SimpleModalWaitFor(Modal):
         self.stop()
 
 async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(Shop(bot), guilds=[ discord.Object(id=943170102759686174) ])
+    await bot.add_cog(Shop(bot), guilds=[ discord.Object(id=943170102759686174), discord.Object(id=1010183521907789977)])

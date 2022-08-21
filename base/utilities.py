@@ -12,6 +12,14 @@ from PIL import Image, ImageColor, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 from base.struct import Config
 
+import os, uuid
+
+path = r'.\_temp'
+
+isExist = os.path.exists(path)
+if not isExist:
+    os.mkdir(path)
+
 class Database:
     def __init__(self, loop, user: str, password: str) -> None:
         self.user = user
@@ -630,7 +638,7 @@ class Shop:
     #    return
     #
 
-    def drawloja(self, total, itens, page: int, coin: int, userImg: BytesIO) -> BytesIO:
+    def drawloja(self, total, itens, coin: int, userImg: BytesIO) -> BytesIO:
 
         # plain = Image.open(byteImg)
         plain = Image.open(userImg)
@@ -651,388 +659,229 @@ class Shop:
         # output = ImageOps.fit(userImg, mask.size, centering=(0.5, 0.5))
         # output.putalpha(mask)
 
-        bg = Image.new('RGBA', (1280, 950), (0, 45, 62, 255))
-        bg_draw = ImageDraw.Draw(bg)
-
-        userImg_Big = userImg_Big.resize((1280, 1280))
-        userImg_Big = userImg_Big.crop((0, 330, 1280, 950 + 330))
-        mask = Image.new("L", userImg_Big.size, 90)
-
-        profileFundo = Image.composite(userImg_Big, bg, mask)
-        profileBlur = profileFundo.filter(ImageFilter.GaussianBlur(radius=10))
-        bg.paste(profileBlur, (0, 0))
-
-        # self.gradientLeft(1.2, 1, bg)
-        # self.gradientRight(1.2, 1, bg)
-        # quad1 = Image.new(mode = "RGB", size = (311, 110), color = (0, 56, 76))
-        # bg.paste(quad1, (0, 30))
-        # quad2 = Image.new(mode = "RGB", size = (311, 110), color = (0, 56, 76))
-        # bg.paste(quad2, (969, 30))
-
-        # bg_draw.rounded_rectangle([(25, 30), (1245, 150)], 25, fill=(0, 56, 76))
-
-        # Titles
-        bg_draw.text((640, 90), "LOJA", font=self.class_font_montbold,
-                     anchor="ms", fill=(219, 239, 255))
+        
 
         # Itens
-
-        largura = 382
         # altura = 190*3
-        if page == None or page == 1:
-            count = 1
-            ccount = 0
-            while count <= 6:
-                list_itens = list(itens[ count - 1 ].values())
+        oriOriginal = Image.open(r"src\imgs\extra\ori.png")
+        starOriginal = Image.open(r"src\imgs\extra\Pin-Star.png")
 
-                if int(list_itens[ 0 ][ 'value' ]) <= int(coin):
-                    valueColor = (0, 247, 132)
-                else:
-                    valueColor = (228, 45, 45)
+        
+        total_page = total/6 if total/6 == int() else int(total/6+1)
+        images = []
+        count = 0
+        ccount = 0
+        for i in range(total_page):
+            bg = Image.new('RGBA', (1280, 950), (0, 45, 62, 255))
+            bg_draw = ImageDraw.Draw(bg)
 
-                itemImg = Image.open(list_itens[ 0 ][ 'img' ]).resize((128, 128), Image.NEAREST) if str(
-                    list_itens[ 0 ][ 'name' ]) == "Chave" else Image.open(list_itens[ 0 ][ 'img' ])
-                lar = (itemImg.size[ 0 ], itemImg.size[ 1 ])
-                # print(list_itens)
-                if count == 1:
+            userImg_Big = userImg_Big.resize((1280, 1280))
+            userImg_Big = userImg_Big.crop((0, 330, 1280, 950 + 330))
+            mask = Image.new("L", userImg_Big.size, 90)
+
+            profileFundo = Image.composite(userImg_Big, bg, mask)
+            profileBlur = profileFundo.filter(ImageFilter.GaussianBlur(radius=10))
+            bg.paste(profileBlur, (0, 0))
+            # self.gradientLeft(1.2, 1, bg)
+            # self.gradientRight(1.2, 1, bg)
+            # quad1 = Image.new(mode = "RGB", size = (311, 110), color = (0, 56, 76))
+            # bg.paste(quad1, (0, 30))
+            # quad2 = Image.new(mode = "RGB", size = (311, 110), color = (0, 56, 76))
+            # bg.paste(quad2, (969, 30))
+
+            # bg_draw.rounded_rectangle([(25, 30), (1245, 150)], 25, fill=(0, 56, 76))
+
+            # Titles
+            bg_draw.text((640, 90), "LOJA", font=self.class_font_montbold,
+                         anchor="ms", fill=(219, 239, 255))
+            for t in range(6):
+                if count <= total:
+                    larg_inic = 420 * ( count )
+                    if larg_inic < 0:
+                        larg_inic = 0
+
+                    
+
+                    larg_baixo = 420 * ( count - 4)
+                    if larg_baixo < 0:
+                        larg_baixo = 0
+
+                    
+
+                    ori_pos_baixo = 436 * ( t - 3 )
+
+                    list_itens = list(itens[ count -1 ].values())
+                    if int(list_itens[ 0 ][ 'value' ]) <= int(coin):
+                        valueColor = (0, 247, 132)
+                    else:
+                        valueColor = (228, 45, 45)
+
+                    itemImg = Image.open(list_itens[ 0 ][ 'img' ]).resize((128, 128), Image.NEAREST) if str(
+                        list_itens[ 0 ][ 'name' ]) == "Chave" else Image.open(list_itens[ 0 ][ 'img' ])
+                    lar = (itemImg.size[ 0 ], itemImg.size[ 1 ])
+                    # print(list_itens)
                     ori_pos = 15
                     altura = 180
-                    larg_inic = 0
-                else:
-                    larg_inic = 420 * (count - 1)
-                    altura = 180
-                    if count == 3:
-                        ori_pos = 428 * (count - 1)
-                    else:
-                        ori_pos = 436 * (count - 1)
+                    altura_baixo = 570
+                    largura = 382
 
-                if larg_inic <= 840:
-                    # 1 row
-                    bg_draw.rounded_rectangle(
-                        [ (37 + larg_inic, altura), ((larg_inic + largura - 2), 320 + altura) ], 25,
-                        fill=(0, 247, 132))  # bg verde
-                    bg_draw.rounded_rectangle(
-                        [ (35 + larg_inic, altura), ((larg_inic + largura), 315 + altura) ], 25, fill=(0, 45, 62))  # bg
-                    bg_draw.rounded_rectangle(
-                        [ (30 + larg_inic, altura), ((larg_inic + largura) + 5, 95 + altura) ], 25,
-                        fill=(0, 56, 76))  # titulo
 
-                    if list_itens[ 0 ][ 'dest' ] == "False":
-                        color = (161, 177, 191)
-                    else:
-                        color = (255, 182, 0)
-                        star = Image.open("src\imgs\extra\Pin-Star.png")
-                        star = star.resize((40, 41), Image.NEAREST)
-                        bg.paste(star, (19 + larg_inic, altura - 15), star)
+                    if larg_inic <= 840:
+                        print(larg_inic)
+                        # 1 row
+                        bg_draw.rounded_rectangle(
+                            [ (37 + larg_inic, altura), ((larg_inic + largura - 2), 320 + altura) ], 25,
+                            fill=(0, 247, 132))  # bg verde
+                        bg_draw.rounded_rectangle(
+                            [ (35 + larg_inic, altura), ((larg_inic + largura), 315 + altura) ], 25, fill=(0, 45, 62))  # bg
+                        bg_draw.rounded_rectangle(
+                            [ (30 + larg_inic, altura), ((larg_inic + largura) + 5, 95 + altura) ], 25,
+                            fill=(0, 56, 76))  # titulo
 
-                    # details
-                    value = f"{int(list_itens[ 0 ][ 'value' ]):,}"
-
-                    value = value.replace(",", ".")
-
-                    largText, altText = self.class_font_montbold_ori.getsize(
-                        list_itens[ 0 ][ 'value' ])
-
-                    largID, altID = self.class_font_montbold_ori.getsize(
-                        f"ID: #{list_itens[ 0 ][ 'id' ]}")
-
-                    bg_draw.rounded_rectangle(
-                        [ (larg_inic + largText + 100, 480), (larg_inic + largText + largID + 140, 43 + 480) ], 15,
-                        fill=(0, 52, 71))  # id
-                    bg_draw.rounded_rectangle(
-                        [ (larg_inic + 30, 473), (larg_inic + largText + 120, 54 + 473) ], 20,
-                        fill=(0, 56, 76))  # price
-
-                    bg_draw.text((larg_inic + 27 + (largura) / 2, 260),
-                                 list_itens[ 0 ][ 'name' ], font=self.class_font_opensansbold, anchor="ms",
-                                 fill=(color))
-                    bg_draw.text((larg_inic + 27 + (largura) / 2, 215),
-                                 list_itens[ 0 ][ 'type' ], font=self.class_font_opensansmold, anchor="ms",
-                                 fill=(color))
-                    # print(itens[count]['value'])
-
-                    bg_draw.text((larg_inic + 90, 483), value,
-                                 font=self.class_font_montbold_ori, fill=(valueColor))
-                    bg_draw.text((larg_inic + largText + 130, 485),
-                                 f"ID: ", font=self.class_font_montbold_ori_menor, fill=(0, 198, 244))
-                    bg_draw.text((larg_inic + largText + 135, 483),
-                                 f"    #{list_itens[ 0 ][ 'id' ]}", font=self.class_font_montbold_ori,
-                                 fill=(0, 198, 244))
-
-                    # print(lar)
-                    if lar[ 0 ] > 250:
-                        bg.paste(
-                            itemImg, (int((larg_inic + 20) + ((largura - lar[ 0 ]) / 2)), 350), itemImg)
-                    else:
-                        bg.paste(itemImg, (35 + 105 + larg_inic, 300), itemImg)
-
-                    ori = Image.open("src\imgs\extra\ori.png")
-
-                    ori = ori.resize((70, 71), Image.NEAREST)
-                    bg.paste(ori, (ori_pos, 467), ori)
-
-                    count += 1
-                elif larg_inic > 840 and ccount <= 3:
-
-                    if count == 4:
-                        larg_baixo = 0
-                        ori_pos_baixo = 15
-                    else:
-                        larg_baixo = 420 * (ccount)
-                        if count == 6:
-                            ori_pos_baixo = 422 * 2
+                        if list_itens[ 0 ][ 'dest' ] == "False":
+                            color = (161, 177, 191)
                         else:
-                            ori_pos_baixo = 436 * (ccount)
+                            color = (255, 182, 0)
+                            star = starOriginal.resize((40, 41), Image.NEAREST)
+                            bg.paste(star, (19 + larg_inic, altura - 15), star)
 
-                    altura = 570
+                        # details
+                        value = f"{int(list_itens[ 0 ][ 'value' ]):,}"
 
-                    bg_draw.rounded_rectangle(
-                        [ (37 + larg_baixo, altura), ((larg_baixo + largura - 2), 320 + altura) ], 25,
-                        fill=(0, 247, 132))
-                    bg_draw.rounded_rectangle(
-                        [ (35 + larg_baixo, altura), ((larg_baixo + largura), 315 + altura) ], 25, fill=(0, 45, 62))
-                    bg_draw.rounded_rectangle(
-                        [ (30 + larg_baixo, altura), ((larg_baixo + largura) + 5, 95 + altura) ], 25, fill=(0, 56, 76))
+                        value = value.replace(",", ".")
 
-                    if list_itens[ 0 ][ 'dest' ] == "False":
-                        color = (161, 177, 191)
-                    else:
-                        color = (255, 182, 0)
-                        star = Image.open("src\imgs\extra\Pin-Star.png")
-                        star = star.resize((40, 41), Image.NEAREST)
-                        bg.paste(star, (19 + larg_baixo, altura - 15), star)
-                    value = f"{int(list_itens[ 0 ][ 'value' ]):,}"
-                    value = value.replace(",", ".")
+                        largText, altText = self.class_font_montbold_ori.getsize(
+                            list_itens[ 0 ][ 'value' ])
 
-                    largText, altText = self.class_font_montbold_ori.getsize(
-                        list_itens[ 0 ][ 'value' ])
+                        largID, altID = self.class_font_montbold_ori.getsize(
+                            f"ID: #{list_itens[ 0 ][ 'id' ]}")
 
-                    largID, altID = self.class_font_montbold_ori.getsize(
-                        f"ID: #{list_itens[ 0 ][ 'id' ]}")
+                        bg_draw.rounded_rectangle(
+                            [ (larg_inic + largText + 100, 480), (larg_inic + largText + largID + 140, 43 + 480) ], 15,
+                            fill=(0, 52, 71))  # id
+                        bg_draw.rounded_rectangle(
+                            [ (larg_inic + 30, 473), (larg_inic + largText + 120, 54 + 473) ], 20,
+                            fill=(0, 56, 76))  # price
 
-                    bg_draw.rounded_rectangle(
-                        [ (larg_baixo + largText + 100, 865), (larg_baixo + largText + largID + 140, 43 + 865) ], 15,
-                        fill=(0, 52, 71))
-                    bg_draw.rounded_rectangle(
-                        [ (larg_baixo + 30, 860), (larg_baixo + largText + 120, 54 + 860) ], 20, fill=(0, 56, 76))
+                        bg_draw.text((larg_inic + 27 + (largura) / 2, 260),
+                                     list_itens[ 0 ][ 'name' ], font=self.class_font_opensansbold, anchor="ms",
+                                     fill=(color))
+                        bg_draw.text((larg_inic + 27 + (largura) / 2, 215),
+                                     list_itens[ 0 ][ 'type' ], font=self.class_font_opensansmold, anchor="ms",
+                                     fill=(color))
+                        # print(itens[t]['value'])
 
-                    bg_draw.text((larg_baixo + 27 + (largura) / 2, 650),
-                                 list_itens[ 0 ][ 'name' ], font=self.class_font_opensansbold, anchor="ms",
-                                 fill=(color))
-                    bg_draw.text((larg_baixo + 27 + (largura) / 2, 605),
-                                 list_itens[ 0 ][ 'type' ], font=self.class_font_opensansmold, anchor="ms",
-                                 fill=(color))
-                    bg_draw.text((larg_baixo + 90, 868), value,
-                                 font=self.class_font_montbold_ori, fill=(valueColor))
-                    bg_draw.text((larg_baixo + largText + 130, 870),
-                                 f"ID: ", font=self.class_font_montbold_ori_menor, fill=(0, 198, 244))
-                    bg_draw.text((larg_baixo + largText + 135, 868),
-                                 f"    #{list_itens[ 0 ][ 'id' ]}", font=self.class_font_montbold_ori,
-                                 fill=(0, 198, 244))
+                        bg_draw.text((larg_inic + 90, 483), value,
+                                     font=self.class_font_montbold_ori, fill=(valueColor))
+                        bg_draw.text((larg_inic + largText + 130, 485),
+                                     f"ID: ", font=self.class_font_montbold_ori_menor, fill=(0, 198, 244))
+                        bg_draw.text((larg_inic + largText + 135, 483),
+                                     f"    #{list_itens[ 0 ][ 'id' ]}", font=self.class_font_montbold_ori,
+                                     fill=(0, 198, 244))
 
-                    if lar[ 0 ] > 250:
-                        bg.paste(
-                            itemImg, (int((larg_baixo + 20) + ((largura - lar[ 0 ]) / 2)), 735), itemImg)
-                    else:
-                        bg.paste(itemImg, (35 + 110 + larg_baixo, 682), itemImg)
-
-                    ori = Image.open("src\imgs\extra\ori.png")
-                    ori = ori.resize((70, 71), Image.NEAREST)
-                    bg.paste(ori, (ori_pos_baixo, 855), ori)
-
-                    count += 1
-                    ccount += 1
-        if page != None and page > 1:
-            truecount = 6
-            count = 1
-            ccount = 0
-            while truecount < total:
-                list_itens = list(itens[ truecount ].values())
-
-                if int(list_itens[ 0 ][ 'value' ]) <= int(coin):
-                    valueColor = (0, 247, 132)
-                else:
-                    valueColor = (228, 45, 45)
-
-                print(list_itens[ 0 ][ 'img' ])
-                itemImg = Image.open(list_itens[ 0 ][ 'img' ]).resize((128, 128), Image.NEAREST) if str(
-                    list_itens[ 0 ][ 'name' ]) == "Chave" else Image.open(list_itens[ 0 ][ 'img' ])
-                
-                lar = (itemImg.size)
-
-                
-                if count == 1:
-                    ori_pos = 15
-                    altura = 180
-                    larg_inic = 0
-                else:
-                    larg_inic = 420 * (count - 1)
-                    altura = 180
-                    if count == 3 or count == 6:
-                        ori_pos = 422 * (count - 1)
-                    else:
-                        ori_pos = 436 * (count - 1)
-
-                if larg_inic <= 840:
-                    # 1 row
-                    bg_draw.rounded_rectangle(
-                        [ (37 + larg_inic, altura), ((larg_inic + largura - 2), 320 + altura) ], 25,
-                        fill=(0, 247, 132))  # bg verde
-                    bg_draw.rounded_rectangle(
-                        [ (35 + larg_inic, altura), ((larg_inic + largura), 315 + altura) ], 25, fill=(0, 45, 62))  # bg
-                    bg_draw.rounded_rectangle(
-                        [ (30 + larg_inic, altura), ((larg_inic + largura) + 5, 95 + altura) ], 25,
-                        fill=(0, 56, 76))  # titulo
-
-                    if list_itens[ 0 ][ 'dest' ] == "False":
-                        color = (161, 177, 191)
-                    else:
-                        color = (255, 182, 0)
-                        star = Image.open("src\imgs\extra\Pin-Star.png")
-                        star = star.resize((40, 41), Image.NEAREST)
-                        bg.paste(star, (19 + larg_inic, altura - 15), star)
-
-                    # details
-                    value = f"{int(list_itens[ 0 ][ 'value' ]):,}"
-
-                    value = value.replace(",", ".")
-                    print("Beleza")
-
-                    largText, altText = self.class_font_montbold_ori.getsize(
-                        list_itens[ 0 ][ 'value' ])
-                    # print(largText, altText)
-                    # bg_draw.rounded_rectangle([(larg_inic+largText+35, 480), (larg_inic+largText+245, 43+480)], 15, fill=(0, 52, 71)) #price
-                    bg_draw.rounded_rectangle(
-                        [ (larg_inic + largText + 35, 480), (larg_inic + largText + 220, 43 + 480) ], 15,
-                        fill=(0, 52, 71))  # price
-                    bg_draw.rounded_rectangle(
-                        [ (larg_inic + 30, 473), (larg_inic + largText + 120, 54 + 473) ], 20,
-                        fill=(0, 56, 76))  # price
-
-                    bg_draw.text((larg_inic + 27 + (largura) / 2, 260),
-                                 list_itens[ 0 ][ 'name' ], font=self.class_font_opensansbold, anchor="ms",
-                                 fill=(color))
-                    bg_draw.text((larg_inic + 27 + (largura) / 2, 215),
-                                 list_itens[ 0 ][ 'type' ], font=self.class_font_opensansmold, anchor="ms",
-                                 fill=(color))
-                    # print(itens[count]['value'])
-
-                    bg_draw.text((larg_inic + 90, 483), value,
-                                 font=self.class_font_montbold_ori, fill=(valueColor))
-                    bg_draw.text((larg_inic + largText + 130, 485),
-                                 f"ID: ", font=self.class_font_montbold_ori_menor, fill=(0, 198, 244))
-                    bg_draw.text((larg_inic + largText + 135, 483),
-                                 f"    #{list_itens[ 0 ][ 'id' ]}", font=self.class_font_montbold_ori,
-                                 fill=(0, 198, 244))
-
-                    # print(lar)
-                    if lar[ 0 ] > 250:
-                        bg.paste(
-                            itemImg, (int((larg_inic) + ((largura - lar[ 0 ]) / 2)), 350), itemImg)
-                    else:
-                        bg.paste(itemImg, (int((larg_inic) + ((largura - lar[ 0 ]) / 2) + 27), 290), itemImg)
-
-                    ori = Image.open("src\imgs\extra\ori.png")
-
-                    ori = ori.resize((70, 71), Image.NEAREST)
-                    bg.paste(ori, (ori_pos, 467), ori)
-                    bg.paste(ori, (25, 56), ori)
-
-                    count += 1
-                    truecount += 1
-
-                elif larg_inic > 840:
-
-                    if count == 4:
-                        larg_baixo = 0
-                        ori_pos_baixo = 15
-                    else:
-                        larg_baixo = 420 * (ccount)
-                        if count == 3 or count == 6:
-                            ori_pos_baixo = 422 * (count - 1)
+                        # print(lar)
+                        if lar[ 0 ] > 250:
+                            bg.paste(
+                                itemImg, (int((larg_inic + 20) + ((largura - lar[ 0 ]) / 2)), 350), itemImg)
                         else:
-                            ori_pos_baixo = 436 * (count - 1)
+                            bg.paste(itemImg, (35 + 105 + larg_inic, 300), itemImg)
 
-                    altura = 570
+                        ori = oriOriginal.resize((70, 71), Image.NEAREST)
+                        bg.paste(ori, (ori_pos, 467), ori)
 
-                    bg_draw.rounded_rectangle(
-                        [ (37 + larg_baixo, altura), ((larg_baixo + largura - 2), 320 + altura) ], 25,
-                        fill=(0, 247, 132))
-                    bg_draw.rounded_rectangle(
-                        [ (35 + larg_baixo, altura), ((larg_baixo + largura), 315 + altura) ], 25, fill=(0, 45, 62))
-                    bg_draw.rounded_rectangle(
-                        [ (30 + larg_baixo, altura), ((larg_baixo + largura) + 5, 95 + altura) ], 25, fill=(0, 56, 76))
-
-                    if list_itens[ 0 ][ 'dest' ] == "False":
-                        color = (161, 177, 191)
                     else:
-                        color = (255, 182, 0)
-                        star = Image.open("src\imgs\extra\Pin-Star.png")
-                        star = star.resize((40, 41), Image.NEAREST)
-                        bg.paste(star, (19 + larg_baixo, altura - 15), star)
-                    value = f"{int(list_itens[ 0 ][ 'value' ]):,}"
-                    value = value.replace(",", ".")
+                        print(larg_baixo)
 
-                    largText, altText = self.class_font_montbold_ori.getsize(
-                        list_itens[ 0 ][ 'value' ])
+                        bg_draw.rounded_rectangle(
+                            [ (37 + larg_baixo, altura_baixo), ((larg_baixo + largura - 2), 320 + altura_baixo) ], 25,
+                            fill=(0, 247, 132))
+                        bg_draw.rounded_rectangle(
+                            [ (35 + larg_baixo, altura_baixo), ((larg_baixo + largura), 315 + altura_baixo) ], 25, fill=(0, 45, 62))
+                        bg_draw.rounded_rectangle(
+                            [ (30 + larg_baixo, altura_baixo), ((larg_baixo + largura) + 5, 95 + altura_baixo) ], 25, fill=(0, 56, 76))
 
-                    bg_draw.rounded_rectangle(
-                        [ (larg_baixo + largText + 27, 865), (larg_baixo + largText + 220, 43 + 865) ], 15,
-                        fill=(0, 52, 71))
-                    bg_draw.rounded_rectangle(
-                        [ (larg_baixo + 30, 860), (larg_baixo + largText + 120, 54 + 860) ], 20, fill=(0, 56, 76))
+                        if list_itens[ 0 ][ 'dest' ] == "False":
+                            color = (161, 177, 191)
+                        else:
+                            color = (255, 182, 0)
+                            star = starOriginal.resize((40, 41), Image.NEAREST)
+                            bg.paste(star, (19 + larg_baixo, altura - 15), star)
+                        value = f"{int(list_itens[ 0 ][ 'value' ]):,}"
+                        value = value.replace(",", ".")
 
-                    bg_draw.text((larg_baixo + 27 + (largura) / 2, 650),
-                                 list_itens[ 0 ][ 'name' ], font=self.class_font_opensansbold, anchor="ms",
-                                 fill=(color))
-                    bg_draw.text((larg_baixo + 27 + (largura) / 2, 605),
-                                 list_itens[ 0 ][ 'type' ], font=self.class_font_opensansmold, anchor="ms",
-                                 fill=(color))
-                    bg_draw.text((larg_baixo + 90, 868), value,
-                                 font=self.class_font_montbold_ori, fill=(valueColor))
-                    bg_draw.text((larg_baixo + largText + 130, 870),
-                                 f"ID: ", font=self.class_font_montbold_ori_menor, fill=(0, 198, 244))
-                    bg_draw.text((larg_baixo + largText + 135, 868),
-                                 f"    #{list_itens[ 0 ][ 'id' ]}", font=self.class_font_montbold_ori,
-                                 fill=(0, 198, 244))
+                        largText, altText = self.class_font_montbold_ori.getsize(
+                            list_itens[ 0 ][ 'value' ])
 
-                    if lar[ 0 ] > 250:
-                        bg.paste(
-                            itemImg, (int((larg_baixo) + ((largura - lar[ 0 ]) / 2)), 735), itemImg)
-                    else:
-                        bg.paste(itemImg, (int((larg_baixo + 20) + ((largura - lar[ 0 ]) / 2)), 682), itemImg)
+                        largID, altID = self.class_font_montbold_ori.getsize(
+                            f"ID: #{list_itens[ 0 ][ 'id' ]}")
 
-                    ori = Image.open("src\imgs\extra\ori.png")
-                    ori = ori.resize((70, 71), Image.NEAREST)
-                    bg.paste(ori, (ori_pos_baixo, 855), ori)
-                    bg.paste(ori, (25, 56), ori)
+                        bg_draw.rounded_rectangle(
+                            [ (larg_baixo + largText + 100, 865), (larg_baixo + largText + largID + 140, 43 + 865) ], 15,
+                            fill=(0, 52, 71))
+                        bg_draw.rounded_rectangle(
+                            [ (larg_baixo + 30, 860), (larg_baixo + largText + 120, 54 + 860) ], 20, fill=(0, 56, 76))
+
+                        bg_draw.text((larg_baixo + 27 + (largura) / 2, 650),
+                                     list_itens[ 0 ][ 'name' ], font=self.class_font_opensansbold, anchor="ms",
+                                     fill=(color))
+                        bg_draw.text((larg_baixo + 27 + (largura) / 2, 605),
+                                     list_itens[ 0 ][ 'type' ], font=self.class_font_opensansmold, anchor="ms",
+                                     fill=(color))
+                        bg_draw.text((larg_baixo + 90, 868), value,
+                                     font=self.class_font_montbold_ori, fill=(valueColor))
+                        bg_draw.text((larg_baixo + largText + 130, 870),
+                                     f"ID: ", font=self.class_font_montbold_ori_menor, fill=(0, 198, 244))
+                        bg_draw.text((larg_baixo + largText + 135, 868),
+                                     f"    #{list_itens[ 0 ][ 'id' ]}", font=self.class_font_montbold_ori,
+                                     fill=(0, 198, 244))
+                        if lar[ 0 ] > 250:
+                            bg.paste(
+                                itemImg, (int((larg_baixo + 20) + ((largura - lar[ 0 ]) / 2)), 735), itemImg)
+                        else:
+                            bg.paste(itemImg, (35 + 110 + larg_baixo, 682), itemImg)
+
+                    
+
+                        ori = oriOriginal.resize((70, 71), Image.NEAREST)
+                        bg.paste(ori, (ori_pos_baixo, 855), ori)
 
                     count += 1
-                    ccount += 1
-                    truecount += 1
+            bg_draw.text((100, 54), "Suas oris",
+                         font=self.class_font_montserrat, fill=(212, 255, 236))
 
-        bg_draw.text((100, 54), "Suas oris",
-                     font=self.class_font_montserrat, fill=(212, 255, 236))
+            value = f"{int(coin):,}".replace(",", ".")
+            bg_draw.text((100, 90), value,
+                         font=self.class_font_montserrat, fill=(0, 247, 132))
 
-        value = f"{int(coin):,}".replace(",", ".")
-        bg_draw.text((100, 90), value,
-                     font=self.class_font_montserrat, fill=(0, 247, 132))
+            bg_draw.text((1063, 55), "Página Atual",
+                         font=self.class_font_montserrat, fill=(161, 177, 191))
 
-        bg_draw.text((1063, 55), "Página Atual",
-                     font=self.class_font_montserrat, fill=(161, 177, 191))
+            bg_draw.text((1200, 90), "{}".format(i+1),
+                         font=self.class_font_montbold_ori, fill=(219, 239, 255))
+            # SUBTITLE
+            bg_draw.text((630, 135), "Use os botões abaixo par navegar entre as páginas.",
+                         font=self.class_font_opensans, anchor="ms", fill=(219, 239, 255))
 
-        bg_draw.text((1200, 90), "{}".format(page),
-                     font=self.class_font_montbold_ori, fill=(219, 239, 255))
-        # SUBTITLE
-        bg_draw.text((630, 135), "Use os botões abaixo par navegar entre as páginas.",
-                     font=self.class_font_opensans, anchor="ms", fill=(219, 239, 255))
+            ccount += 1
+            
+            #bg.paste(output, (100, 193), output)
 
-        #bg.paste(output, (100, 193), output)
+            #buffer = BytesIO()
+            try:
+                u = uuid.uuid4().hex
 
-        buffer = BytesIO()
-        bg.save(buffer, 'png')
-        buffer.seek(0)
-        return buffer
+                bg.save(f'{os.path.join(path, u)}.png', 'png')
+                #buffer.seek(0)
+
+            except Exception as i:
+                raise i
+            else:
+                images.append(f"{u}.png")
+
+
+        print("Done.")
+        print(ccount)
+        return images
 
 class Top:
     def __init__(self) -> None:
@@ -1067,9 +916,11 @@ class Top:
 
         for e in ranking:
             users = list(ranking[ count ].values())
-
-            response = requests.get(users[ 0 ][ 'avatar_url' ])
-            user_img = Image.open(BytesIO(response.content))
+            try:
+                response = requests.get(users[ 0 ][ 'avatar_url' ])
+                user_img = Image.open(BytesIO(response.content))
+            except:
+                user_img = Image.open("src/imgs/extra/spark.png")
 
             if user_img.mode != 'RGBA':
                 user_img = user_img.convert('RGBA')

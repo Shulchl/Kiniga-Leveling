@@ -446,9 +446,17 @@ class Mod(commands.Cog, name='Moderação'):
                 users = []
                 while count < len(rows):
                     user = ctx.guild.get_member(int(rows[count][0]))
-                    if user.name == ctx.author.name:
+
+                    try:
+                        user = user.name
+                        avatar = user.display_avatar.url
+                    except:
+                        user = "Desconhecido#0000"
+                        avatar = "src/imgs/extra/spark.png"
+
+                    if user == ctx.author.name:
                         user_position = count
-                    avatar = user.display_avatar.url
+                    
                     rank_image = await self.db.fetch(f"SELECT badges FROM ranks WHERE lv <= {rows[count][1]} ORDER BY lv Desc LIMIT 1")
                     if rank_image:
                         users.append({count: {
