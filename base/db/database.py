@@ -28,8 +28,8 @@ def print_psycopg2_exception(err):
     try:
         print ("\nextensions.Diagnostics:", err.diag)
     except:
-        pass
+        print("pgerror:", err.pgerror)
     # print the pgcode and pgerror exceptions
-    print("pgerror:", err.pgerror)
-    print("pgcode:", err.pgcode, "\n")
+    finally:
+        print("pgcode:", err.pgcode, "\n")
     
