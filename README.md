@@ -14,12 +14,14 @@ Done.
 
 ## Perfil
 
-![s.perfil](https://media.discordapp.net/attachments/943945066836283392/966742487957930065/rank_card.png)
+![s.perfil](https://media.discordapp.net/attachments/1009074998889164880/1044368626267979866/rank_card.png)
 
 ## Nível
 
-![s.nivel](https://media.discordapp.net/attachments/623675809651097612/966740061959897209/profile_card.png)
+![s.nivel](https://media.discordapp.net/attachments/1009074998889164880/1044352825901199461/profile_card.png)
 
 ## Loja
 
-![s.loja (número da página)](https://media.discordapp.net/attachments/623675809651097612/966742007529738310/lojinha.png)
+![s.loja (número da página)](https://media.discordapp.net/attachments/1009074998889164880/1044368855704801440/c554e3e03bc34483a065d2274a81bbcb.png)
+![s.loja (número da página)](https://media.discordapp.net/attachments/1009074998889164880/1044368910809571328/temp_eed0fcaa9939437fa429cd598bc559a6.png)
+![s.loja (número da página)](https://media.discordapp.net/attachments/1009074998889164880/1044368940169699358/temp_4a9d8e1b6a58419eacf485a908759c96.png)

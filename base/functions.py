@@ -443,6 +443,16 @@ async def get_roles(member: discord.Member, guild, roles=[
 
     855117820814688307
 ]):
+    # roles = [943171518895095869,
+    #    943174476839936010,
+    #    943192163947274341,
+    #    943172687642132591,
+    #    943171893752659979,
+    #    943172687642132591,
+    #    943193084584402975,
+    #    943251043838468127,
+    #    949805774484426783,
+    #    1010184007394283630]
     rr = []
     for role in member.roles:
         if role.id in roles:
@@ -633,7 +643,7 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
                                             SELECT CAST(
                                                 itens::jsonb->'%s'->'ids'->'%s' as INTEGER
                                             ) + 1 as %s_rank FROM iventory 
-                                            WHERE ivent_id=('%s')
+                                            WHERE ivent_id=(\'%s\')
                                         )::text
 
                                     )::jsonb,
@@ -642,8 +652,16 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
                             ) WHERE ivent_id=(\'%s\')
                             
                             RETURNING itens::json->'%s'
-                        """ % (str(itens[i]), itensId[i], str(itens[i]), itensId[i], str(itens[i]), iventoryId)
+                        """ % (str(itens[i]), itensId[i], str(itens[i]), itensId[i], 
+                               str(itens[i]), iventoryId, iventoryId, str(itens[i]))
                         )
+                    elif (isinstance(error, TypeError)):
+                        res = error
+                        print(res)
+                    else:
+                        res = error
+                        print(res)
+                    
     return res
 
 

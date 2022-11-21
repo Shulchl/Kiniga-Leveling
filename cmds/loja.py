@@ -165,7 +165,7 @@ class Shop(commands.Cog):
             0][0], item[0][1], item[0][2], item[0][3], item[0][4]
 
         ivent_key_name = item_type
-        print (ivent_key_name)
+        # print (ivent_key_name)
 
         # GET ITENS FROM WITH SPECIFIC KEY
         user_itens = await user_inventory(self, interaction.user.id, 'get', [str(ivent_key_name)])
@@ -390,7 +390,7 @@ class Shop(commands.Cog):
             
             if banner_id:
                 banner = banner_id[0][0]
-        await interaction.response.defer(ephemeral = False, thinking = True)
+        await interaction.response.defer(ephemeral = True, thinking = True)
         exist = os.path.exists(
             rf'./_temp/{botVar.oldImgs[0] if len(botVar.oldImgs) > 0 else False}')
         if botVar.shopItems == items and exist != False:

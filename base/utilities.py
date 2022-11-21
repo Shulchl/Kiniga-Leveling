@@ -1276,35 +1276,26 @@ class Rank:
                     if count >= total:
                         break
                     list_itens = list(items[count].values())
-                    #print (list_itens)
-
-                    if str(list_itens[0]['type']) == "Banner":
-                        itemImg = Image.open(
+                    
+                    itemImg = Image.open(
                             list_itens[0]['img']).convert("RGBA")
+                    if str(list_itens[0]['type']) == "Banner":
+                        
                         itemImg = itemImg.resize(
                             (235, 105), Image.Resampling.NEAREST)
                         itemImg = self.add_corners(itemImg, 20)
 
                     elif str(list_itens[0]['type']) == "Utilizavel":
-                        itemImg = Image.open(
-                            list_itens[0]['img']).convert("RGBA")
                         itemImg = itemImg.resize(
                             (128, 128), Image.Resampling.NEAREST)
 
                     elif str(list_itens[0]['type']) == "Badge":
-                        itemImg = Image.open(
-                            list_itens[0]['img']).convert("RGBA")
                         itemImg = itemImg.resize(
                             (int(itemImg.size[0]/2.5), int(itemImg.size[1]/2.5)), Image.Resampling.NEAREST)
                     elif str(list_itens[0]['type']) == "Titulo":
-                        itemImg = Image.open(
-                            list_itens[0]['img']).convert("RGBA")
-
+                        pass
                     else:
-                        itemImg = Image.open(
-                            list_itens[0]['img']).convert("RGBA")
                         lar = (itemImg.size[0], itemImg.size[1])
-
                         itemImg = itemImg.resize(
                             (int(itemImg.size[0]/2.5), int(itemImg.size[1]/2.5)), Image.Resampling.NEAREST)
 
@@ -1331,9 +1322,6 @@ class Rank:
 
                     if altura > 1280:
                         break
-
-                    largura = ((img.size[0] + 35) * ccount) + \
-                        (35 if ccount == 0 else 35)
 
                 # ROW BACKGROUND IMAGE 1
                     plain.paste(img, (largura, altura), img)
@@ -1368,7 +1356,7 @@ class Rank:
                 u = uuid.uuid4().hex
 
                 plain.save(f'{os.path.join(path, u)}.jpg',
-                           'JPEG', optimize=True)
+                           'JPEG') # optimize=True
                 # buffer.seek(0)
 
             except Exception as i:
@@ -1380,347 +1368,6 @@ class Rank:
     @staticmethod
     def neededxp(level: str) -> int:
         return 100 + level * 300
-
-
-class Shop:
-
-    def __init__(self) -> None:
-        self.class_font_montbold = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 72)
-        self.class_font_montbold_ori = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 27)
-        self.class_font_montbold_ori_menor = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 22)
-        self.class_font_opensans = ImageFont.truetype(
-            os.path.join(pathOpen, 'OpenSansRegular.ttf'), 30)
-        self.class_font_opensansmold = ImageFont.truetype(
-            os.path.join(pathOpen, 'OpenSansRegular.ttf'), 33)
-        self.class_font_opensansbold = ImageFont.truetype(
-            os.path.join(pathOpen, 'OpenSansBold.ttf'), 33)
-        self.class_font_montserrat = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratRegular.ttf'), 27)
-
-#
-#  GRADIENTE
-    #   Gradiente para a esquerda
-    # def gradientLeft(self, gradient, initial_opacity, bg):
-    #    #input_im = Image.open(src)
-
-    #    input_im = Image.new(mode = "RGB", size = (311, 110), color = (0, 65, 89))
-
-    #    gradient= 1.2
-    #    initial_opacity=1
-
-    #    if input_im.mode != 'RGBA':
-    #        input_im = input_im.convert('RGBA')
-    #    width, height = input_im.size
-
-    #    alpha_gradient = Image.new('L', (width, 1), color=0xFF)
-    #    for x in range(width):
-    #        a = int((initial_opacity * 255.) * (1. - gradient * float(x)/width))
-    #
-    #        if a > 0:
-    #            alpha_gradient.putpixel((x, 0), a)
-    #        else:
-    #            alpha_gradient.putpixel((x, 0), 0)
-    #    alpha = alpha_gradient.resize(input_im.size)
-
-    #    black_im = Image.new('RGBA', (width, height), color=0)
-    #    black_im.putalpha(alpha)
-
-    #    #make composite with original image
-    #    output_im = Image.composite(input_im, bg, black_im)
-    #    bg.paste(output_im, (0, 30), output_im)
-    #
-    #    return
-
-    #   Gradiente para a direita
-    # def gradientRight(self, gradient, initial_opacity, bg):
-    #    #input_im = Image.open(src)
-    #    input_im = Image.new(mode = "RGB", size = bg.size, color = (0, 65, 89))
-
-    #    gradient= 1.2
-    #    initial_opacity=1
-
-    #    if input_im.mode != 'RGBA':
-    #        input_im = input_im.convert('RGBA')
-    #    width, height = input_im.size
-
-    #    alpha_gradient = Image.new('L', (width, 1), color=0xFF)
-    #    for x in range(width):
-    #        a = int((initial_opacity * 255.) * (1. - gradient * float(x)/width))
-    #
-    #        if a > 0:
-    #            alpha_gradient.putpixel((-x, 0), a)
-    #        else:
-    #            alpha_gradient.putpixel((-x, 0), 0)
-    #    alpha = alpha_gradient.resize(input_im.size)
-
-    #    black_im = Image.new('RGBA', (width, height), color=0)
-    #    black_im.putalpha(alpha)
-
-    #    input_im.transpose(Image.FLIP_LEFT_RIGHT)
-    #    output_im = Image.composite(input_im, bg, black_im)
-    #    input_im.crop((3, 0, 311, 124))
-    #    bg.paste(input_im, (969, 30), black_im)
-    #
-    #    return
-    #
-#
-    # LOJA ANTIGA
-    def drawloja(self, total, itens, coin: int, userImg: BytesIO) -> BytesIO:
-
-        # plain = Image.open(byteImg)
-        plain = Image.open(userImg)
-
-        if plain.mode != 'RGBA':
-            plain = plain.convert('RGBA')
-
-        userImg_Big = plain.copy()
-
-        oriOriginal = Image.open(r"src\imgs\extra\ori.png")
-        starOriginal = Image.open(r"src\imgs\extra\Pin-Star.png")
-
-        total_page = total/6 if total/6 == int() else int(total/6+1)
-        images = []
-        count = 0
-        for i in range(total_page):
-            bg = Image.new('RGBA', (1280, 950), (0, 45, 62, 255))
-            bg_draw = ImageDraw.Draw(bg)
-
-            userImg_Big = userImg_Big.resize((1280, 1280))
-            userImg_Big = userImg_Big.crop((0, 330, 1280, 950 + 330))
-            mask = Image.new("L", userImg_Big.size, 90)
-
-            profileFundo = Image.composite(userImg_Big, bg, mask)
-            profileBlur = profileFundo.filter(
-                ImageFilter.GaussianBlur(radius=10))
-            bg.paste(profileBlur, (0, 0))
-            bg_draw.text((640, 90), "LOJA", font=self.class_font_montbold,
-                         anchor="ms", fill=(219, 239, 255))
-
-            tcount = 0
-            ccount = 0
-            if tcount == 3:
-                tcount = 0
-                ccount = 0
-
-            for t in range(7):
-
-                if count < t:
-                    list_itens = list(itens[count].values())
-
-                    if int(list_itens[0]['value']) <= int(coin):
-                        valueColor = (0, 247, 132)
-                    else:
-                        valueColor = (228, 45, 45)
-
-                    if str(list_itens[0]['type']) == "Banner":
-                        itemImg = Image.open(list_itens[0]['img']).resize(
-                            (330, 185), Image.NEAREST)
-                        print("Banner")
-                    elif str(list_itens[0]['type']) == "Utilizavel":
-                        itemImg = Image.open(list_itens[0]['img']).resize(
-                            (128, 128), Image.NEAREST)
-                        print("Util")
-                    else:
-                        itemImg = Image.open(list_itens[0]['img'])
-
-                    lar = (itemImg.size[0], itemImg.size[1])
-                    # print(list_itens)
-
-                    altura = 180
-                    largura = 382
-
-                    larg_inic = 420 * ccount
-                    larg_baixo = 420 * tcount
-
-                    ori_pos = 420 * ccount
-                    ori_pos_baixo = 420 * tcount
-
-                    if larg_baixo > 840:
-                        break
-
-                    if larg_inic <= 840:
-                        # 1 row
-                        bg_draw.rounded_rectangle(
-                            [(37 + larg_inic, altura),
-                             ((larg_inic + largura - 2), 320 + altura)], 25,
-                            fill=(0, 247, 132))  # bg verde
-                        bg_draw.rounded_rectangle(
-                            [(35 + larg_inic, altura), ((larg_inic + largura), 315 + altura)], 25, fill=(0, 45, 62))  # bg
-                        bg_draw.rounded_rectangle(
-                            [(30 + larg_inic, altura),
-                             ((larg_inic + largura) + 5, 95 + altura)], 25,
-                            fill=(0, 56, 76))  # titulo
-
-                        if list_itens[0]['dest'] == "False":
-                            color = (161, 177, 191)
-                        else:
-                            color = (255, 182, 0)
-                            star = starOriginal.resize((40, 41), Image.NEAREST)
-                            bg.paste(star, (19 + larg_inic, altura - 15), star)
-
-                        # details
-                        value = f"{int(list_itens[ 0 ][ 'value' ]):,}"
-
-                        value = value.replace(",", ".")
-
-                        largText, altText = self.class_font_montbold_ori.getsize(
-                            list_itens[0]['value'])
-
-                        largID, altID = self.class_font_montbold_ori.getsize(
-                            f"ID: #{list_itens[ 0 ][ 'id' ]}")
-
-                        bg_draw.rounded_rectangle(
-                            [(larg_inic + largText + 100, 480), (larg_inic +
-                                                                 largText + largID + 140, 43 + 480)], 15,
-                            fill=(0, 52, 71))  # id
-                        bg_draw.rounded_rectangle(
-                            [(larg_inic + 30, 473),
-                             (larg_inic + largText + 120, 54 + 473)], 20,
-                            fill=(0, 56, 76))  # price
-
-                        bg_draw.text((larg_inic + 27 + (largura) / 2, 260),
-                                     list_itens[0]['name'], font=self.class_font_opensansbold, anchor="ms",
-                                     fill=(color))
-                        bg_draw.text((larg_inic + 27 + (largura) / 2, 215),
-                                     list_itens[0]['type'], font=self.class_font_opensansmold, anchor="ms",
-                                     fill=(color))
-                        # print(itens[t]['value'])
-
-                        bg_draw.text((larg_inic + 90, 483), value,
-                                     font=self.class_font_montbold_ori, fill=(valueColor))
-                        bg_draw.text((larg_inic + largText + 130, 485),
-                                     f"ID: ", font=self.class_font_montbold_ori_menor, fill=(0, 198, 244))
-                        bg_draw.text((larg_inic + largText + 135, 483),
-                                     f"    #{list_itens[ 0 ][ 'id' ]}", font=self.class_font_montbold_ori,
-                                     fill=(0, 198, 244))
-
-                        # print(lar)
-                        if list_itens[0]['type'] == "Titulo":
-                            bg.paste(
-                                itemImg,
-                                (int((larg_inic + 20) +
-                                 ((largura - lar[0]) / 2)), 350),
-                                itemImg
-                            )
-                        elif list_itens[0]['type'] == "Banner":
-                            bg.paste(itemImg, (int((larg_inic + 20) + ((largura - lar[0]) / 2)),
-                                               int((95 + altura))))
-                        else:
-                            bg.paste(
-                                itemImg, (35 + 105 + larg_inic, 300), itemImg)
-
-                        ori = oriOriginal.resize((70, 71), Image.NEAREST)
-                        bg.paste(ori, (ori_pos, 467), ori)
-                        ccount += 1
-
-                    elif larg_baixo <= 840:
-
-                        altura = 570
-
-                        bg_draw.rounded_rectangle(
-                            [(37 + larg_baixo, altura),
-                             ((larg_baixo + largura - 2), 320 + altura)], 25,
-                            fill=(0, 247, 132))
-                        bg_draw.rounded_rectangle(
-                            [(35 + larg_baixo, altura), ((larg_baixo + largura), 315 + altura)], 25, fill=(0, 45, 62))
-                        bg_draw.rounded_rectangle(
-                            [(30 + larg_baixo, altura), ((larg_baixo + largura) + 5, 95 + altura)], 25, fill=(0, 56, 76))
-
-                        if list_itens[0]['dest'] == "False":
-                            color = (161, 177, 191)
-                        else:
-                            color = (255, 182, 0)
-                            star = starOriginal.resize((40, 41), Image.NEAREST)
-                            bg.paste(
-                                star, (19 + larg_baixo, altura - 15), star)
-                        value = f"{int(list_itens[ 0 ][ 'value' ]):,}"
-                        value = value.replace(",", ".")
-
-                        largText, altText = self.class_font_montbold_ori.getsize(
-                            list_itens[0]['value'])
-
-                        largID, altID = self.class_font_montbold_ori.getsize(
-                            f"ID: #{list_itens[ 0 ][ 'id' ]}")
-
-                        bg_draw.rounded_rectangle(
-                            [(larg_baixo + largText + 100, 865),
-                             (larg_baixo + largText + largID + 140, 43 + 865)], 15,
-                            fill=(0, 52, 71))
-                        bg_draw.rounded_rectangle(
-                            [(larg_baixo + 30, 860), (larg_baixo + largText + 120, 54 + 860)], 20, fill=(0, 56, 76))
-
-                        bg_draw.text((larg_baixo + 27 + (largura) / 2, 650),
-                                     list_itens[0]['name'], font=self.class_font_opensansbold, anchor="ms",
-                                     fill=(color))
-                        bg_draw.text((larg_baixo + 27 + (largura) / 2, 605),
-                                     list_itens[0]['type'], font=self.class_font_opensansmold, anchor="ms",
-                                     fill=(color))
-                        bg_draw.text((larg_baixo + 90, 868), value,
-                                     font=self.class_font_montbold_ori, fill=(valueColor))
-                        bg_draw.text((larg_baixo + largText + 130, 870),
-                                     f"ID: ", font=self.class_font_montbold_ori_menor, fill=(0, 198, 244))
-                        bg_draw.text((larg_baixo + largText + 135, 868),
-                                     f"    #{list_itens[ 0 ][ 'id' ]}", font=self.class_font_montbold_ori,
-                                     fill=(0, 198, 244))
-
-                        if list_itens[0]['type'] == "Titulo":
-                            bg.paste(
-                                itemImg,
-                                (int((larg_baixo + 20) +
-                                 ((largura - lar[0]) / 2)), 735),
-                                itemImg
-                            )
-                        elif list_itens[0]['type'] == "Banner":
-                            bg.paste(itemImg, (int((larg_baixo + 20) + ((largura - lar[0]) / 2)),
-                                               int(95 + altura)))
-                        else:
-                            bg.paste(
-                                itemImg, (35 + 110 + larg_baixo, 682), itemImg)
-
-                        ori = oriOriginal.resize((70, 71), Image.NEAREST)
-                        bg.paste(ori, (ori_pos_baixo, 855), ori)
-                        tcount += 1
-
-                    count += 1
-            bg_draw.text((100, 54), "Suas oris",
-                         font=self.class_font_montserrat, fill=(212, 255, 236))
-
-            value = f"{int(coin):,}".replace(",", ".")
-            bg_draw.text((100, 90), value,
-                         font=self.class_font_montserrat, fill=(0, 247, 132))
-
-            bg_draw.text((1063, 55), "Página Atual",
-                         font=self.class_font_montserrat, fill=(161, 177, 191))
-
-            bg_draw.text((1200, 90), "{}".format(i+1),
-                         font=self.class_font_montbold_ori, fill=(219, 239, 255))
-            # SUBTITLE
-            bg_draw.text((630, 135), "Use os botões abaixo par navegar entre as páginas.",
-                         font=self.class_font_opensans, anchor="ms", fill=(219, 239, 255))
-
-            #bg.paste(output, (100, 193), output)
-
-            #buffer = BytesIO()
-
-            # Tá bem feito, mas é só tirar esse convert, mudar jpg pra png e tirar o optimize do save
-            bg = bg.convert('RGB')
-            try:
-                u = uuid.uuid4().hex
-
-                bg.save(f'{os.path.join(path, u)}.jpg', 'JPEG', optimize=True)
-                # buffer.seek(0)
-
-            except Exception as i:
-                raise i
-            else:
-                images.append(f"{u}.jpg")
-        return images
-
-# NOVA LOJA
-
 
 class shopNew:
     def __init__(self) -> None:
@@ -1887,7 +1534,6 @@ class shopNew:
                 larg_baixo = 420 * tcount
 
                 list_itens = list(items[count].values())
-                #print (list_itens)
 
                 if str(list_itens[0]['type']) == "Banner":
                     itemImg = Image.open(list_itens[0]['img']).convert(
@@ -1918,7 +1564,6 @@ class shopNew:
 
                 lar = (itemImg.size[0], itemImg.size[1])
 
-                # print(list_itens)
 
                 if larg_baixo > 840:
                     # ROW 1
@@ -2166,7 +1811,6 @@ class Utilities:
     def __init__(self):
         self.database = Database
         self.rankcard = Rank()
-        self.shop = Shop()
         self.shopnew = shopNew()
         self.topcard = Top()
 
