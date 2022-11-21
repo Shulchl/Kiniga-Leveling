@@ -119,4 +119,4 @@ class Ajuda(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(Ajuda(bot), guilds=[ discord.Object(id=943170102759686174) ])
+    await bot.add_cog(Ajuda(bot))

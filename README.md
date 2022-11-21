@@ -6,6 +6,10 @@ Run: cp config.json.exemples config.json
 
 Edit config.json
 
+Need to install uuid into Postgres for itens' table management
+
+`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`
+
 Done.
 
 ## Perfil
