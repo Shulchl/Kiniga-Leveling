@@ -7,8 +7,8 @@ import os
 
 smtp_server = "smtp.gmail.com"
 port = 587  # For starttls
-sender_email = ""
-password = ""
+sender_email = "emaildetestedesite@gmail.com"
+password = "zjedqtwptxmfqknp"
 
 
 async def sendMail(email, mailhtml, mailtxt):
@@ -1220,17 +1220,7 @@ def getEmailMessage(status):
                                                 >.
                                             </p>
 
-                                            <p
-                                                style="
-                                                font-size: 14px;
-                                                line-height: 160%;
-                                                text-align: justify;
-                                                "
-                                            >
-                                                Peço que não pule esta mensagem, pois ela é
-                                                de <strong>extrema importância</strong> para
-                                                que sua história seja aprovada uma próxima vez, se ocorrer problemas. 
-                                            </p>
+                                            
                                             </div>
                                         </td>
                                         </tr>
@@ -1388,7 +1378,7 @@ def getEmailMessage(status):
                                                     line-height: 22.4px;
                                                     color: #264653;
                                                     "
-                                                    >Se você tiver alguma dúvida,
+                                                    >Mas, se você tiver alguma dúvida,
                                                     contate-nos pelo Discord.<span
                                                     style="
                                                         color: #34495e;

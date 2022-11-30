@@ -1,37 +1,31 @@
-from __future__ import annotations
-
 import asyncio
 import datetime
 import json
 import random
-import uuid
-import os
 import aiohttp
-import requests
-import ast
 
 from asyncio import sleep as asyncsleep
 
 import discord
 import discord.utils
+from discord import File as dFile
+from discord.ext import commands, tasks
+from discord.utils import format_dt
+
 from base.functions import (convert, giveway_idFunction,
                             starterRoles, starterItens, timeRemaning, user_inventory)
 from base.image import ImageCaptcha
 from base.struct import Config
 from base.utilities import utilities
-from discord import File as dFile
-from discord.ext import commands, tasks
-from typing import Literal
-from typing import Optional
+from typing import Literal, Optional
 
 from io import BytesIO
 
 
-class Mod(commands.Cog, name='Moderação'):
+class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self.db = utilities.database(
-            self.bot.loop, self.bot.cfg.postgresql_user, self.bot.cfg.postgresql_password)
+        self.db = utilities.database(self.bot.loop)
         self.chosen = []
 
         if self.bot.cfg.bdayloop:
@@ -307,15 +301,16 @@ class Mod(commands.Cog, name='Moderação'):
     @commands.cooldown(1, 30, commands.BucketType.member)
     async def load(self, ctx, extension):
         await self.bot.load_extension(f'cmds.{extension}')
-        await ctx.reply("Carreguei os comandos")
+        res = await ctx.reply("Carreguei os comandos")
+        await ctx.message.delete()
+        await res.delete()
 
     @load.error
     async def load_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
             await ctx.send(
-                'Você precisa esperar {:.2f}s, para poder usar esse comando de novo.'.format(
-                    error.retry_after),
-                delete_after=5)
+                "%s você poderá usar este comando de novo."
+                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
         else:
             await ctx.send(error, delete_after=5)
 
@@ -325,15 +320,16 @@ class Mod(commands.Cog, name='Moderação'):
     async def reload(self, ctx, extension):
         await self.bot.unload_extension(f'cmds.{extension}')
         await self.bot.load_extension(f'cmds.{extension}')
-        await ctx.reply("Recarreguei os comandos")
+        res = await ctx.reply("Recarreguei os comandos")
+        await ctx.message.delete()
+        await res.delete()
 
     @reload.error
     async def reload_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
             await ctx.send(
-                'Você precisa esperar {:.2f}s, para poder usar esse comando de novo.'.format(
-                    error.retry_after),
-                delete_after=5)
+                "%s você poderá usar este comando de novo."
+                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
         else:
             await ctx.send(error, delete_after=5)
 
@@ -342,15 +338,16 @@ class Mod(commands.Cog, name='Moderação'):
     @commands.cooldown(1, 30, commands.BucketType.member)
     async def unload(self, ctx, extension):
         await self.bot.unload_extension(f'cmds.{extension}')
-        await ctx.reply("Descarreguei os comandos")
+        res = await ctx.reply("Descarreguei os comandos")
+        await ctx.message.delete()
+        await res.delete()
 
     @unload.error
     async def unload_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
             await ctx.send(
-                'Você precisa esperar {:.2f}s, para poder usar esse comando de novo.'.format(
-                    error.retry_after),
-                delete_after=5)
+                "%s você poderá usar este comando de novo."
+                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
         else:
             await ctx.send(error, delete_after=5)
 
@@ -374,14 +371,34 @@ class Mod(commands.Cog, name='Moderação'):
     @commands.has_permissions(administrator=True)
     @commands.command(name="tsql")
     async def tsql(self, ctx, *, sql: str) -> None:
+        await ctx.message.delete()
         output = await self.db.fetch(sql)
-        await ctx.send(f'```{output}```')
+        await ctx.send(f'```{output}```', delete_after=20)
+    
+    @tsql.error
+    async def tsql_error(self, ctx, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            await ctx.send(
+                "%s você poderá usar este comando de novo."
+                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
+        else:
+            await ctx.send(error, delete_after=5)
 
     @commands.has_permissions(administrator=True)
     @commands.command(name="tsqlist")
     async def tsqlist(self, ctx, *, sql: str) -> None:
+        await ctx.message.delete()
         output = await self.db.fetchList(sql)
-        await ctx.send(f'```{output}```')
+        await ctx.send(f'```{output}```', delete_after=20)
+    
+    @tsqlist.error
+    async def tsqlist_error(self, ctx, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            await ctx.send(
+                "%s você poderá usar este comando de novo."
+                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
+        else:
+            await ctx.send(error, delete_after=5)
 
     @commands.is_owner()
     @commands.command(name="sync")
@@ -419,26 +436,24 @@ class Mod(commands.Cog, name='Moderação'):
     @commands.has_permissions(administrator=True)
     @commands.command(name='setroles')
     async def setroles(self, ctx):
+        await ctx.message.delete()
         try:
             await starterRoles(self, ctx.message)
         except Exception as e:
             raise e
         else:
-            await ctx.reply("Cargos definidos.")
-
-        await ctx.message.delete()
+            await ctx.send("Cargos definidos.", delete_after=10)
 
     @commands.has_permissions(administrator=True)
     @commands.command(name='setitens')
     async def setitens(self, ctx):
+        await ctx.message.delete()
         try:
             await starterItens(self)
         except Exception as e:
             raise e
-        else:
-            await ctx.reply("Itens criados.", delete_after=5)
-
-        await ctx.message.delete()
+        finally:
+            await ctx.send("Itens criados.", delete_after=10)
 
     @commands.command(name='ranking')
     async def ranking(self, ctx, opt: Optional[Literal["Ori", "Nivel"]]):
@@ -465,7 +480,7 @@ class Mod(commands.Cog, name='Moderação'):
                 users = []
                 user_position = 0
                 count = 0
-                for i in range(len(rows)):
+                for i, value in enumerate(rows):
                     user = ctx.guild.get_member(int(rows[count][0]))
                     if user:
                         avatar = user.display_avatar.url
@@ -522,9 +537,10 @@ class Mod(commands.Cog, name='Moderação'):
                 await self.updatemolds(),
                 await self.updatebanners(),
                 await self.updatebadges(),
-                await self.updateutil()
+                await self.updateutil(),
+                await self.shopupdate()
             ])
-        if type(res) == list():
+        if isinstance(res, list):
             for i in res:
                 await ctx.send(i)
         else:
@@ -533,13 +549,13 @@ class Mod(commands.Cog, name='Moderação'):
     async def shopupdate(self):
         try:
 
-            await self.db.fetch("DELETE FROM shop WHERE id >= 0")
-            await self.db.fetch("""
+            await self.db.execute("DELETE FROM shop WHERE lvmin >= 0")
+            await self.db.execute("""
 				INSERT INTO shop(
-					id, name, value, type_, dest, img, lvmin
+					id, name, value, type_, dest, img, lvmin, item_type_id
 				)
-				SELECT id, name, value, type_, dest, img, lvmin
-				FROM itens WHERE canbuy=true ON CONFLICT (id) DO NOTHING;
+				SELECT id, name, value, type_, dest, img, lvmin, item_type_id
+				FROM itens WHERE canbuy=true ON CONFLICT (item_type_id) DO NOTHING;
 			""")
         except Exception as i:
             return (f"Não foi possível atualizar a loja: \n`{i}`")
@@ -549,8 +565,8 @@ class Mod(commands.Cog, name='Moderação'):
     # BANNERS
     async def updatebanners(self):
         try:
-            await self.db.fetch("DELETE FROM itens WHERE type_=('Banner')")
-            await self.db.fetch("""
+            await self.db.execute("DELETE FROM itens WHERE type_=('Banner')")
+            await self.db.execute("""
 				INSERT INTO itens(
 					item_type_id, name, img,
 					img_profile, canbuy, value, type_
@@ -567,8 +583,8 @@ class Mod(commands.Cog, name='Moderação'):
     # MOLDURAS
     async def updatemolds(self):
         try:
-            await self.db.fetch("DELETE FROM itens WHERE type_=('Moldura')")
-            await self.db.fetch("""
+            await self.db.execute("DELETE FROM itens WHERE type_=('Moldura')")
+            await self.db.execute("""
 				INSERT INTO itens(
 					item_type_id, name, type_, value, lvmin,
 					img, imgd, img_profile, canbuy, group_, category
@@ -585,8 +601,8 @@ class Mod(commands.Cog, name='Moderação'):
     # TITULOS
     async def updatetitles(self):
         try:
-            await self.db.fetch("DELETE FROM itens WHERE type_=('Titulo')")
-            await self.db.fetch("""
+            await self.db.execute("DELETE FROM itens WHERE type_=('Titulo')")
+            await self.db.execute("""
 				INSERT INTO itens(
 					item_type_id, name, type_,
 					img, value, canbuy
@@ -603,8 +619,8 @@ class Mod(commands.Cog, name='Moderação'):
     # UTILIZÁVEIS
     async def updateutil(self):
         try:
-            await self.db.fetch("DELETE FROM itens WHERE type_=('Utilizavel')")
-            await self.db.fetch("""
+            await self.db.execute("DELETE FROM itens WHERE type_=('Utilizavel')")
+            await self.db.execute("""
 				INSERT INTO itens(
 					item_type_id, name, type_,
 					img, value
@@ -621,8 +637,8 @@ class Mod(commands.Cog, name='Moderação'):
     # BADGES
     async def updatebadges(self):
         try:
-            await self.db.fetch("DELETE FROM itens WHERE type_=('Badge')")
-            await self.db.fetch("""
+            await self.db.execute("DELETE FROM itens WHERE type_=('Badge')")
+            await self.db.execute("""
 				INSERT INTO itens(
 					item_type_id, name, 
 					type_, img, value, lvmin, 

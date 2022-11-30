@@ -1,14 +1,4 @@
-from __future__ import annotations
-
-from datetime import datetime as dt
-from datetime import timedelta
-from pydoc import describe
-from types import NoneType
-from arcade import View
-from numpy import str0
 import requests
-import shutil
-from asyncio import sleep as asyncsleep
 import re
 import os
 import json
@@ -21,7 +11,7 @@ from typing import Literal
 from typing import Optional
 
 from base.utilities import utilities
-from base.views import Paginacao, reviewButton, publishButton
+from base.views import reviewButton, publishButton
 from base.struct import Config
 from base.mail import sendMail, getEmailMessage
 
@@ -30,14 +20,11 @@ from discord import File as dFile
 # Mod Functions Commands Class
 
 
-class ModFunc(commands.Cog, name='Editoria'):
+class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
     def __init__(self, bot: commands.Bot) -> None:
-        super().__init__()
-
         self.bot = bot
 
-        self.db = utilities.database(
-            self.bot.loop, self.bot.cfg.postgresql_user, self.bot.cfg.postgresql_password)
+        self.db = utilities.database(self.bot.loop)
 
         self.ctx_menu = app_commands.ContextMenu(
             name='Avaliar história!',
@@ -171,8 +158,9 @@ class ModFunc(commands.Cog, name='Editoria'):
     async def getfile(self, message):
         fileInfo = []
         attach = message.attachments
-        for i in range(len(attach)):
-            # print(attach)
+        for i, value in enumerate(attach):
+
+            # Por enquanto, só quero 1 arquivo. Porém, se precisar de mais, o código está pronto
             if i >= 1:
                 break
 
@@ -205,7 +193,7 @@ class ModFunc(commands.Cog, name='Editoria'):
         authordiscord = re.findall("([\w\.-]+#[\w\.-]+)", content)
         historyID = re.findall("( #[\w\.-]+)", content)
 
-        return authordiscord, authoremail, str(historyID), filename
+        return authordiscord[0], authoremail[0], historyID[0], filename
 
     async def checkuseringuild(self, user: str, guild):
         if isinstance(user, str):
@@ -230,20 +218,19 @@ class ModFunc(commands.Cog, name='Editoria'):
 
     async def senduseringuild(self, author):
         err = None
-        errBool = None
+        errBool = False
         try:
             # to author
             message = discord.Embed(
                 title=f"{author.name}, meus parabéns por se tornar um autor da Kiniga!",
-                description="\n Fique ligado no canal <#678060799213830201> para saber quando sua história será publicada! ",
+                description="Sua história acabba de ser aceita.\n"
+                "Fique ligado(a) no canal <#678060799213830201> para saber quando sua história será publicada! ",
                 color=0x00ff33).set_author(
                     name="Kiniga Brasil",
                     url='https://kiniga.com/',
                     icon_url='https://kiniga.com/wp-content/uploads/fbrfg/favicon-32x32.png').set_footer(
                         text='Espero que seja muito produtivo escrevendo!')
             await author.send(embed=message)
-
-            errBool = False
 
         except Exception as e:
             # to staff
@@ -268,9 +255,9 @@ class ModFunc(commands.Cog, name='Editoria'):
         await interaction.response.defer(ephemeral=False, thinking=True)
 
         view = reviewButton()
-        msgId = await interaction.followup.send(
+        await interaction.followup.send(
             "Deseja aceitar ou recusar a história? \n`Use o botão \"Sim\" para aceitar e \"Não\" para recusar.`",
-            view=view)
+            view=view, ephemeral=True)
 
         await view.wait()  # Espera resposta
         # PEGA INFO DA FILE
@@ -295,12 +282,15 @@ class ModFunc(commands.Cog, name='Editoria'):
                         content="Não foi possível enviar a mensagem para o/a autor/a. Tente novamente mais tarde.\n\n`%s`" % (err), view=None
                     )
                 else:
-                    pass
+                    await interaction.edit_original_response(
+                        content="A mensagem foi enviada ao(à) autor(a) com sucesso. (ID %s)" % (str(historyID)), view=None)
+                    
             await accept_channel.send("História %s pronta para ser publicada. \n`"
                                       "Use o botão \"Sim\" para finalizar o processo de publicação, \"Não\" para excluir a história da fila.`" % (
                                           str(historyID), ),
                                       file=dFile(rf'./_temp/{filename}'), view=publishButton(user_discord=authorDiscord, hid=str(historyID), message=message)
                                       )
+            await message.add_reaction("✔")
             # (await self.getinfo(message))[0])
         elif view.status == 'refuse':
             emailhtml, emailtxt = getEmailMessage(status='refuse')
@@ -314,11 +304,11 @@ class ModFunc(commands.Cog, name='Editoria'):
             except Exception as e:
                 await interaction.channel.send("`( 〃．．)` Deu um erro aqui... \n`%s` " % (e), delete_after=10)
 
-            await refused_channel.send("`ID %s recusada.`" % (str(historyID)))
+            await refused_channel.send("ID: %s (%s) **Recusado por %s**" % (str(historyID), authorEmail, interaction.user))
 
-            await message.edit(content="**Recusada** (#%s)" % (str(historyID)), attachments=[])
-        await msgId.delete()
+            await message.add_reaction("❌")
         await sendMail(email=authorEmail, mailhtml=emailhtml, mailtxt=emailtxt)
+        await message.add_reaction("📩")
 
 
 async def setup(bot: commands.Bot) -> None:

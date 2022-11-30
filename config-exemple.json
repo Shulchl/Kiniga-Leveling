@@ -1,7 +1,10 @@
 {
+    "db_Name": "",
     "bot_token": "",
     "postgresql_user": "postgres",
     "postgresql_password": "",
+    "postgresql_host": "localhost",
+
     "min_message_xp": 10,
     "max_message_xp": 25,
     "coinsmin": 5,
@@ -10,7 +13,7 @@
     "prefix": "s.",
     "bdayloop": false,
     "guild": "Testando bot",
-    "chat_cmds": 406996662997745674,
+    "chat_cmds": ID,
     "coin_max": 20,
     "setup": false,
     "ranks": [
@@ -72,17 +75,20 @@
         ]
     ],
     "trash": [
-        [
-            "uma meia"
-        ],
-        [
-            "um sapato"
-        ],
-        [
-            "um saco plástico"
-        ],
-        [
-            "uma rede"
-        ]
-    ]
+        "uma meia",
+        "um sapato",
+        "um saco plástico",
+        "uma rede",
+        "um canudo",
+        "um óculos quebrado"
+    ],
+    "eqp_role": ID,
+    "mark_role": ID,
+    "aut_role": ID,
+    "creat_role": ID,
+    "chat_loop": ID,
+    "chat_release": ID,
+    "chat_creators": ID,
+    "acept_channel": ID,
+    "refuse_channel": ID
 }

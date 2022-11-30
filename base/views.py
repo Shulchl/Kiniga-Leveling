@@ -3,15 +3,13 @@ import os
 import json
 import re
 
-from typing import Callable, Coroutine, Optional
 from typing_extensions import Self
-from typing import List, Union
+from typing import List, Union, Any, Callable, Coroutine, Optional
 
 from discord import Embed, Interaction, TextStyle
-from discord.ui import Modal, TextInput
+from discord.ui import View, Modal, TextInput
 from discord.utils import maybe_coroutine
 
-from discord.ui import View
 from discord import ui, app_commands
 
 from discord import File as dFile
@@ -123,8 +121,6 @@ class Paginacao(View):
                 )
                 return False
         return True
-
-
 class reviewButton(View):
     def __init__(self, *, timeout=180) -> None:
         super().__init__(timeout=timeout)
@@ -154,8 +150,6 @@ class reviewButton(View):
             i.disabled = True
         await interaction.response.edit_message(view=self)
         self.stop()
-
-
 class publishButton(View):
     def __init__(self, user_discord, hid, message) -> None:
         super().__init__()
@@ -293,4 +287,107 @@ class publishButton(View):
         hid = re.search(r"#\d+", str(interaction.message.content))
         await interaction.response.edit_message(content='`História %s retirada da fila por %s.`' % (hid.group(), interaction.user), view=self)
         await self.message.add_reaction('❌')
+        self.stop()
+class SimpleModalWaitFor(Modal):
+    def __init__(
+        self,
+        title: Optional[str] = None,
+        *,
+        check: Optional[Callable[[Self, Interaction],
+                                 Union[Coroutine[Any, Any, bool], bool]]] = None,
+        timeout: int = 300,
+        input_label: Optional[str] = None,
+        input_max_length: int = 100,
+        input_min_length: int = 5,
+        input_style: TextStyle = TextStyle.short,
+        input_placeholder: Optional[str] = None,
+        input_default: Optional[str] = None,
+    ):
+        super().__init__(title=title, timeout=timeout, custom_id="wait_for_modal")
+        self._check: Optional[Callable[[Self, Interaction],
+                                       Union[Coroutine[Any, Any, bool], bool]]] = check
+        self.value: Optional[str] = None
+        self.interaction: Optional[Interaction] = None
+
+        # type, name, valor: int, nivel: int, img_loja, img_perfil=None, img_round_title=None,canbuy: bool = True
+
+        self.name = TextInput(
+            label="Qual o nome do item?",
+            placeholder="",
+            max_length=30,
+            min_length=3,
+            style=input_style,
+            default=input_default,
+            custom_id=self.custom_id + "_input_field",
+        )
+        self.type = TextInput(
+            label="Qual o tipo do item?",
+            placeholder="(Moldura/Titulo/Consumivel)",
+            max_length=input_max_length,
+            min_length=input_min_length,
+            style=input_style,
+            default=input_default,
+            custom_id=self.custom_id + "0" + "_input_field",
+        )
+        self.value = TextInput(
+            label="Qual o valor do item?",
+            placeholder="Números inteiros apenas.",
+            max_length=45,
+            min_length=3,
+            style=input_style,
+            default=input_default,
+            custom_id=self.custom_id + "1" + "_input_field",
+        )
+        self.img_loja = TextInput(
+            label="Link da imagem que aparecerá na loja?",
+            placeholder="(Dimensão máxima: 170x140)",
+            min_length=1,
+            style=input_style,
+            default=input_default,
+            custom_id=self.custom_id + "3" + "_input_field",
+        )
+        self.img_perfil = TextInput(
+            label="Link da imagem que aparecerá no perfil?",
+            placeholder="Exemplo: [url perfil, url arredondado] (Se não for Moldura, não insira nada aqui)",
+            required=False,
+            style=input_style,
+            default=input_default,
+            custom_id=self.custom_id + "4" + "_input_field",
+        )
+        # self.img_round_title = TextInput(
+        #    label="Link da imagem arredondada do nome do rank?",
+        #    placeholder="(Se o Tipo for Titulo, não insira nada aqui)",
+        #    required = False,
+        #    style=input_style,
+        #    default=input_default,
+        #    custom_id=self.custom_id + "5" + "_input_field",
+        # )
+
+        self.add_item(self.name)
+        self.add_item(self.type)
+        self.add_item(self.value)
+        self.add_item(self.img_loja)
+        self.add_item(self.img_perfil)
+        # self.add_item(self.img_round_title)
+
+    async def interaction_check(self, interaction: Interaction) -> bool:
+        if self._check:
+            allow = await maybe_coroutine(self._check, self, interaction)
+            return allow
+
+        return True
+
+    async def on_submit(self, interaction: Interaction) -> None:
+        itens = interaction.data
+        values = []
+
+        for key, value in itens.items():
+            if key == 'components':
+                for i in value:
+                    for value in i['components']:
+                        values.append(value['value'])
+        print(values)
+
+        self.value = values
+        self.interaction = interaction
         self.stop()
