@@ -301,9 +301,8 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     @commands.cooldown(1, 30, commands.BucketType.member)
     async def load(self, ctx, extension):
         await self.bot.load_extension(f'cmds.{extension}')
-        res = await ctx.reply("Carreguei os comandos")
         await ctx.message.delete()
-        await res.delete()
+        await ctx.reply("Carreguei os comandos", delete_after=5)
 
     @load.error
     async def load_error(self, ctx, error):
@@ -320,9 +319,8 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     async def reload(self, ctx, extension):
         await self.bot.unload_extension(f'cmds.{extension}')
         await self.bot.load_extension(f'cmds.{extension}')
-        res = await ctx.reply("Recarreguei os comandos")
         await ctx.message.delete()
-        await res.delete()
+        await ctx.reply("Recarreguei os comandos", delete_after=5)
 
     @reload.error
     async def reload_error(self, ctx, error):
@@ -338,9 +336,8 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     @commands.cooldown(1, 30, commands.BucketType.member)
     async def unload(self, ctx, extension):
         await self.bot.unload_extension(f'cmds.{extension}')
-        res = await ctx.reply("Descarreguei os comandos")
         await ctx.message.delete()
-        await res.delete()
+        await ctx.reply("Descarreguei os comandos", delete_after=5)
 
     @unload.error
     async def unload_error(self, ctx, error):
@@ -355,19 +352,15 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     @commands.command()
     @commands.cooldown(1, 300, commands.BucketType.member)
     async def shutdown(self, ctx):
-        if ctx.message.author.id == 179440483796385792:
-            await ctx.message.delete()
-            print((("-" * 20) + "shutdown" + ("-" * 20)))
-            try:
-                await self.bot.close()
-            except Exception as e:
-                raise await self.bot.clear(e)
-            else:
-                await ctx.reply("Deu merda aqui em. Melhor ver isso logo...")
-
+        await ctx.message.delete()
+        print((("-" * 20) + "shutdown" + ("-" * 20)))
+        try:
+            await self.bot.close()
+        except Exception as e:
+            raise await self.bot.clear(e)
         else:
-            await ctx.send("You do not own this bot!")
-
+            await ctx.reply("Deu merda aqui em. Melhor ver isso logo...")
+            
     @commands.has_permissions(administrator=True)
     @commands.command(name="tsql")
     async def tsql(self, ctx, *, sql: str) -> None:
