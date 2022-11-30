@@ -7,8 +7,6 @@ import uuid
 import sys
 import time
 
-from tenacity import *
-
 from io import BytesIO
 from lib2to3.pytree import convert
 from typing import Any, Dict, List, Optional
@@ -71,25 +69,10 @@ class Database:
 
         self.pool: Optional[asyncpg.pool.Pool] = None
 
-        self.sql_times: dict = {}
-
         self.user = self.cfg.postgresql_user
         self.password = self.cfg.postgresql_password
         self.host = self.cfg.postgresql_host
         loop.create_task(self.connect())
-
-    def my_before_sleep(retry_state):
-        if retry_state.attempt_number < 1:
-            loglevel = logging.INFO
-        else:
-            loglevel = logging.WARNING
-        logger.log(
-            loglevel, 'Retrying %s: attempt %s ended with: %s',
-            retry_state.fn, retry_state.attempt_number, retry_state.outcome)
-
-    def log(self, sql: str, time: float) -> None:
-        self.sql_times.setdefault(sql, [])
-        self.sql_times[sql].append(time)
 
     #@retry(stop=stop_after_attempt(4), before_sleep=my_before_sleep)
     async def connect(self) -> None:
@@ -130,9 +113,7 @@ class Database:
         try:
             async with self.pool.acquire() as conn:
                 async with conn.transaction():
-                    s = time.perf_counter()
                     result = await conn.fetch(sql, *args)
-            self.log(sql, time.perf_counter() - s)
             return result
         except Exception as err:
             pycopg_exception(err)
@@ -140,34 +121,26 @@ class Database:
     async def fetchval(self, sql: str, *args: Any) -> list:
         async with self.pool.acquire() as conn:
             async with conn.transaction():
-                s = time.perf_counter()
                 result = await conn.fetchval(sql, *args)
-        self.log(sql, time.perf_counter() - s)
         return result
 
     async def fetchrow(self, sql: str, *args: Any) -> list:
         async with self.pool.acquire() as conn:
             async with conn.transaction():
-                s = time.perf_counter()
                 result = await conn.fetchrow(sql, *args)
-        self.log(sql, time.perf_counter() - s)
         return result
 
     async def fetchList(self, sql: str, *args: Any) -> list:
         async with self.pool.acquire() as conn:
             async with conn.transaction():
-                s = time.perf_counter()
                 result = '\n\n'.join([json.dumps(dict(x), ensure_ascii=False, cls=UUIDEncoder) for x in (await conn.fetch(sql, *args))])
-        self.log(sql, time.perf_counter() - s)
         return result
 
     async def execute(self, sql: str, *args: Any) -> None:
         try:
             async with self.pool.acquire() as conn:
                 async with conn.transaction():
-                    s = time.perf_counter()
-                result = await conn.execute(sql, *args)
-            self.log(sql, time.perf_counter() - s)
+                    result = await conn.execute(sql, *args)
             return result
 
         except Exception as err:
