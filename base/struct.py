@@ -9,6 +9,11 @@ class Config:
         self.postgresql_password = cfg['postgresql_password']
         self.postgresql_host = cfg['postgresql_host']
         
+        # COISAS DO EMAIL DO BOT
+        self.bot_mail = cfg['bot_mail']
+        self.bot_mailpass = cfg['bot_mailpass']
+        self.bot_mailhost = cfg['bot_mailhost']
+        
         # COISAS DO DISCORD
         self.bot_token = cfg['bot_token']
         
