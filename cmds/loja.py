@@ -1,31 +1,23 @@
-from __future__ import annotations
-
 import re
 import os
 import discord
 import requests
 import shutil
 import ast
+import datetime
 
 from base.utilities import utilities
+from base.views import Paginacao, SimpleModalWaitFor as cItemModal
 from base.functions import (
-    get_userAvatar_func as getUserAvatar, user_inventory)
+    get_userAvatar_func as getUserAvatar, user_inventory, print_progress_bar as progress)
 
 from discord import File as dFile
-from discord.ext import commands
-
-from typing import Callable, Coroutine, Optional
-from typing_extensions import Self
-
-from discord import Interaction, TextStyle
-from discord.utils import maybe_coroutine
-
-from discord.ui import View, Modal, TextInput
+from discord import Interaction
 from discord import app_commands
+from discord.ext import commands
+from discord.utils import format_dt
 
-from base.views import Paginacao
 
-from typing import Union, Any
 # CLASS SHOP
 
 botVar = commands.Bot
@@ -37,9 +29,8 @@ botVar.oldImgs = []
 class Shop(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self.db = utilities.database(
-            self.bot.loop, self.bot.cfg.postgresql_user, self.bot.cfg.postgresql_password)
-    
+        self.db = utilities.database(self.bot.loop)
+
     def checktype_(self, type):
         match str(type).upper():
             case "MOLDURA":
@@ -53,7 +44,32 @@ class Shop(commands.Cog):
             case "BADGE":
                 itype = 'badge'
         return itype
-    
+
+    @app_commands.command(name='cbanners')
+    async def createBanners(self, interaction) -> None:
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        banners = [filename for filename in os.listdir(
+            'src/imgs/banners') if filename.endswith('.png')]
+        count = 0
+        for i, item in enumerate(banners):
+            progress(i, len(banners), " progresso de banners criadas")
+            item_name = ' '.join(item.split('-'))[0:-4]
+            await self.db.fetch("""
+                INSERT INTO banners 
+                    (name, img_loja, img_perfil, canbuy, value) 
+                VALUES 
+                    ('%s',
+                    'src/imgs/banners/%s',
+                    'src/imgs/banners/%s',
+                    true, 15500000) 
+                ON CONFLICT (name) DO NOTHING 
+            """ % (item_name, item, item))
+            count = i+1
+
+        print(f"{count} Banners criadas")
+        await interaction.followup.send(f"{count} Banners criadas", ephemeral=True)
+
     async def createitem(self, interaction, value):
         name = value[0].title()
         tipo = value[1].title()
@@ -90,6 +106,8 @@ class Shop(commands.Cog):
                 img = [f'src/imgs/titulos/{tipo}-{name}.png']
                 paths = [img_loja]
                 img_loja = img[0]
+            elif tipo == "Banner":
+                img = [f'src/imgs/banners/{tipo}-{name}.png']
             else:
                 img = [f'src/imgs/extra/{tipo}-{name}.png']
                 paths = [img_loja]
@@ -97,7 +115,7 @@ class Shop(commands.Cog):
 
             try:
                 count = 0
-                for i in range(len(paths)):
+                for i, value in enumerate(paths):
                     response = requests.get(paths[i], stream=True)
                     with open(img[i], 'wb') as out_file:
                         shutil.copyfileobj(response.raw, out_file)
@@ -120,7 +138,7 @@ class Shop(commands.Cog):
                 except Exception as e:
                     return e
 
-                return f"``` DADOS INSERIDOS ```"
+                print("``` DADOS INSERIDOS ```")
 
         except Exception as i:
             return i
@@ -128,21 +146,22 @@ class Shop(commands.Cog):
     @app_commands.command(name='citem')
     async def citem(self, interaction) -> None:
         """Test command to wait for input. This will trigger a modal."""
-        def check(modal: SimpleModalWaitFor, modal_interaction: Interaction) -> bool:
+        def check(modal: cItemModal, modal_interaction: Interaction) -> bool:
             return modal_interaction.user.id == interaction.user.id
-        wait_modal = SimpleModalWaitFor(
+
+        wait_modal = cItemModal(
             title=f"{interaction.user.name}, insira as informações solicitadas.",
-            input_label="What is your name?",
-            input_max_length=20,
             check=check,
         )
         await interaction.response.send_modal(wait_modal)
 
-        wait_value = await wait_modal.wait()
+        await wait_modal.wait()
+
         if wait_modal.value is None:
             # Send a followup message to the channel.
             await interaction.followup.send(f"{interaction.user} did not enter a value in time.")
             return
+
         res = await self.createitem(interaction, wait_modal.value)
 
         await wait_modal.interaction.response.send_message(res)
@@ -169,34 +188,35 @@ class Shop(commands.Cog):
 
         # GET ITENS FROM WITH SPECIFIC KEY
         user_itens = await user_inventory(self, interaction.user.id, 'get', [str(ivent_key_name)])
-        #user_itens = await user_inventory(self, interaction.user.id, 'add', [str(ivent_key_name)], [int(item_id)])
-        
+        # user_itens = await user_inventory(self, interaction.user.id, 'add', [str(ivent_key_name)], [int(item_id)])
+
         # RETURN IF HAS IT ALREADY
         if ivent_key_name == "Badge":
             for i in user_itens:
                 print(i[1])
                 if str(item_id) in i[1]:
                     return await interaction.response.send_message("Você já tem esse item.", ephemeral=True)
-                else: pass
-                
+                else:
+                    pass
+
         else:
             if str(item_id) in user_itens[0][1]:
                 return await interaction.response.send_message("Você já tem esse item.", ephemeral=True)
 
         user_info = await self.db.fetch(f"""
-            SELECT spark, rank, inventory_id FROM users WHERE id=('{interaction.user.id}')
+            SELECT spark, rank, iventory_id FROM users WHERE id=('{interaction.user.id}')
         """)
         if not user_info:
             return await interaction.response.send_message(
                 "Usuário não encontrado na database", ephemeral=True
             )
         spark, rank, iventory_id = user_info[0][0], user_info[0][1], user_info[0][2]
-        
+
         if item_lvmin == None:
             item_lvmin = 0
         if item_value == None:
             item_value = 0
-        
+
         if spark < item_value:
             return await interaction.response.send_message(
                 "Você não tem sparks o suficiênte para comprar este item. D:", ephemeral=True
@@ -206,7 +226,7 @@ class Shop(commands.Cog):
                 "Você não tem nível o bastante para comprar este item. D:", ephemeral=True
             )
         l = await user_inventory(self, interaction.user.id, 'add', [str(ivent_key_name)], [item_id_uui])
-        
+
         getSpark = await self.db.fetch("""
             UPDATE users SET spark = (spark - %s) WHERE id = ('%s') RETURNING spark
         """ % (item_value, interaction.user.id, )
@@ -229,20 +249,20 @@ class Shop(commands.Cog):
             type_ = item[0][1]
             name = item[0][2]
             group_ = item[0][3]
-            
+
         inv = await user_inventory(self, interaction.user.id, 'get', [type_])
-        
+
         inv_ids = []
         for row in inv:
             l = ast.literal_eval(row[1])
             for key, value in l.items():
                 inv_ids.append(key)
-        
+
         itype = self.checktype_(type_)
-                    
+
         if str(id_) not in inv_ids:
             return await interaction.response.send_message("Você não tem esse item.", ephemeral=True)
-        
+
         try:
             if itype == "badge":
                 await self.db.fetch("""
@@ -252,8 +272,8 @@ class Shop(commands.Cog):
                             '{%s}'::text[],
                             '\"%s\"'::jsonb
                         )
-                    ) WHERE ivent_id=(
-                        SELECT inventory_id FROM users WHERE id=(\'%s\')
+                    ) WHERE iventory_id=(
+                        SELECT iventory_id FROM users WHERE id=(\'%s\')
                     )
 
                     RETURNING badge::jsonb;
@@ -261,18 +281,18 @@ class Shop(commands.Cog):
             else:
                 await self.db.fetch("""
                     UPDATE iventory SET %s=(\'%s\') 
-                    WHERE ivent_id=(
-                        SELECT inventory_id FROM users WHERE id = (\'%s\')
+                    WHERE iventory_id=(
+                        SELECT iventory_id FROM users WHERE id = (\'%s\')
                     )
                     RETURNING mold;
                 """ % (itype, id_, interaction.user.id, ))
         except Exception as e:
             raise e
         else:
-            await interaction.response.send_message("%s %s %s!" % 
-                (type_.title(), name, 
-                 "equipada" if type_.endswith('a') else "equipado"), ephemeral=True)
-            
+            await interaction.response.send_message("%s %s %s!" %
+                                                    (type_.title(), name,
+                                                     "equipada" if type_.endswith('a') else "equipado"), ephemeral=True)
+
     @equipar.error
     async def equipar_error(self, interaction: discord.Interaction, error):
         if isinstance(error, commands.BadArgument):
@@ -293,7 +313,7 @@ class Shop(commands.Cog):
             type_ = item[0][1]
             name = item[0][2]
             group_ = item[0][3]
-            
+
         inv = await user_inventory(self, interaction.user.id, 'get', [type_])
 
         inv_ids = []
@@ -301,9 +321,8 @@ class Shop(commands.Cog):
             l = ast.literal_eval(row[1])
             for key, value in l.items():
                 inv_ids.append(key)
-                
-        itype = self.checktype_(type_)
 
+        itype = self.checktype_(type_)
 
         if str(item_id) not in inv_ids:
             return await interaction.response.send_message("Você não tem esse item.", ephemeral=True)
@@ -317,8 +336,8 @@ class Shop(commands.Cog):
                             '{%s}'::text[],
                             '\"%s\"'::jsonb
                         )
-                    ) WHERE ivent_id=(
-                        SELECT inventory_id FROM users WHERE id=(\'%s\')
+                    ) WHERE iventory_id=(
+                        SELECT iventory_id FROM users WHERE id=(\'%s\')
                     )
 
                     RETURNING badge::jsonb;
@@ -326,17 +345,18 @@ class Shop(commands.Cog):
             else:
                 await self.db.fetch("""
                     UPDATE iventory SET %s= Null
-                    WHERE ivent_id=(
-                        SELECT inventory_id FROM users WHERE id = (\'%s\')
+                    WHERE iventory_id=(
+                        SELECT iventory_id FROM users WHERE id = (\'%s\')
                     );
                 """ % (itype, interaction.user.id, ))
         except Exception as e:
             raise e
         else:
             await interaction.response.send_message("%s %s %s!" %
-                (type_.title(), name,"deequipada" if type_.endswith('a') else "equipado"), ephemeral=True)            
+                                                    (type_.title(), name, "deequipada" if type_.endswith('a') else "equipado"), ephemeral=True)
 
     #   LOJAs
+    @app_commands.checks.cooldown(1, 30.0, key=lambda i: (i.guild_id, i.user.id))
     @app_commands.command(name='loja')
     async def loja(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
         uMember = member
@@ -348,12 +368,11 @@ class Shop(commands.Cog):
         total = int(re.sub(r"\D", "", str(total[0][0])))
         if total <= 0:
             return await interaction.response.send_message("`No momento, não temos itens na loja.`", ephemeral=True)
-        
+
         rows = await self.db.fetch("""
             SELECT id, name, type_, value, img, lvmin 
             FROM shop ORDER BY value Desc
         """)
-
 
         try:
             items = []
@@ -369,153 +388,60 @@ class Shop(commands.Cog):
         except Exception as e:
             raise e
         else:
-        
-            userResources = await self.db.fetch("SELECT spark, ori, inventory_id FROM users WHERE id = ('%s')" % (uMember.id, ))
-                
+
+            userResources = await self.db.fetch("SELECT spark, ori, iventory_id FROM users WHERE id = ('%s')" % (uMember.id, ))
+
             spark = userResources[0][0]
             if userResources[0][0] is None:
                 spark = 0
-            
+
             ori = userResources[0][1]
             if userResources[0][1] is None:
                 ori = 0
-            
+
             banner_id = await self.db.fetch("""
                 SELECT img_loja FROM banners WHERE id =
                     (
-                        SELECT banner FROM iventory WHERE ivent_id=('%s')
+                        SELECT banner FROM iventory WHERE iventory_id=('%s')
                     )
                     """ % (userResources[0][2], ))
             banner = None
-            
+
             if banner_id:
                 banner = banner_id[0][0]
-        await interaction.response.defer(ephemeral = True, thinking = True)
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
         exist = os.path.exists(
             rf'./_temp/{botVar.oldImgs[0] if len(botVar.oldImgs) > 0 else False}')
         if botVar.shopItems == items and exist != False:
             items = botVar.shopItems
             pages = botVar.oldImgs
             #pageFile = botVar.oldImgs[0]
-            
+
         else:
             botVar.oldImgs = []
             #pageFile = []
-            
+
             pages = utilities.shopnew.drawloja(
                 total, spark, ori, items, banner
             )
             botVar.oldImgs = pages
             botVar.shopItems = items
-            
+
         pages = [os.path.join('./_temp/', i) for i in pages]
         view = Paginacao(pages, 60, interaction.user)
         await interaction.followup.send(file=dFile(rf'{pages[0]}'), view=view, ephemeral=True)
         out = interaction.edit_original_response
         view.response = out
 
-class SimpleModalWaitFor(Modal):
-    def __init__(
-        self,
-        title: str = "Waiting For Input",
-        *,
-        check: Optional[Callable[[Self, Interaction],
-                                 Union[Coroutine[Any, Any, bool], bool]]] = None,
-        timeout: int = 300,
-        input_label: str = "Input text",
-        input_max_length: int = 100,
-        input_min_length: int = 5,
-        input_style: TextStyle = TextStyle.short,
-        input_placeholder: Optional[str] = None,
-        input_default: Optional[str] = None,
-    ):
-        super().__init__(title=title, timeout=timeout, custom_id="wait_for_modal")
-        self._check: Optional[Callable[[Self, Interaction],
-                                       Union[Coroutine[Any, Any, bool], bool]]] = check
-        self.value: Optional[str] = None
-        self.interaction: Optional[Interaction] = None
-
-        # type, name, valor: int, nivel: int, img_loja, img_perfil=None, img_round_title=None,canbuy: bool = True
-
-        self.name = TextInput(
-            label="Qual o nome do item?",
-            placeholder="",
-            max_length=30,
-            min_length=3,
-            style=input_style,
-            default=input_default,
-            custom_id=self.custom_id + "_input_field",
-        )
-        self.type = TextInput(
-            label="Qual o tipo do item?",
-            placeholder="(Moldura/Titulo/Consumivel)",
-            max_length=input_max_length,
-            min_length=input_min_length,
-            style=input_style,
-            default=input_default,
-            custom_id=self.custom_id + "0" + "_input_field",
-        )
-        self.value = TextInput(
-            label="Qual o valor do item?",
-            placeholder="Números inteiros apenas.",
-            max_length=45,
-            min_length=3,
-            style=input_style,
-            default=input_default,
-            custom_id=self.custom_id + "1" + "_input_field",
-        )
-        self.img_loja = TextInput(
-            label="Link da imagem que aparecerá na loja?",
-            placeholder="(Dimensão máxima: 170x140)",
-            min_length=1,
-            style=input_style,
-            default=input_default,
-            custom_id=self.custom_id + "3" + "_input_field",
-        )
-        self.img_perfil = TextInput(
-            label="Link da imagem que aparecerá no perfil?",
-            placeholder="Exemplo: [url perfil, url arredondado] (Se não for Moldura, não insira nada aqui)",
-            required=False,
-            style=input_style,
-            default=input_default,
-            custom_id=self.custom_id + "4" + "_input_field",
-        )
-        # self.img_round_title = TextInput(
-        #    label="Link da imagem arredondada do nome do rank?",
-        #    placeholder="(Se o Tipo for Titulo, não insira nada aqui)",
-        #    required = False,
-        #    style=input_style,
-        #    default=input_default,
-        #    custom_id=self.custom_id + "5" + "_input_field",
-        # )
-
-        self.add_item(self.name)
-        self.add_item(self.type)
-        self.add_item(self.value)
-        self.add_item(self.img_loja)
-        self.add_item(self.img_perfil)
-        # self.add_item(self.img_round_title)
-
-    async def interaction_check(self, interaction: Interaction) -> bool:
-        if self._check:
-            allow = await maybe_coroutine(self._check, self, interaction)
-            return allow
-
-        return True
-
-    async def on_submit(self, interaction: Interaction) -> None:
-        itens = interaction.data
-        values = []
-
-        for key, value in itens.items():
-            if key == 'components':
-                for i in value:
-                    for value in i['components']:
-                        values.append(value['value'])
-
-        self.value = values
-        self.interaction = interaction
-        self.stop()
+    @loja.error
+    async def loja_error(self, interaction, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            await interaction.response.send_message(
+                "%s você poderá usar este comando de novo."
+                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
+        else:
+            await interaction.response.send_message(error, delete_after=5)
 
 
 async def setup(bot: commands.Bot) -> None:

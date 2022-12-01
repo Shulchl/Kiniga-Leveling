@@ -4,13 +4,15 @@ import json
 import requests
 import os
 import uuid
+import sys
+import time
 
 from io import BytesIO
 from lib2to3.pytree import convert
-from typing import List
+from typing import Any, Dict, List, Optional
 from PIL import Image, ImageColor, ImageDraw, ImageFilter, ImageFont, ImageOps
 from base.struct import Config
-from base.db.database import print_psycopg2_exception as pycopg_exception
+from base.db.pgUtils import print_psycopg2_exception as pycopg_exception
 
 import line_profiler
 
@@ -22,236 +24,127 @@ from psycopg2 import OperationalError, errorcodes, errors
 # import the psycopg2 library's __version__ string
 from psycopg2 import __version__ as psycopg2_version
 
-path = r'.\_temp'
+from uuid import UUID
+import logging
 
-isExist = os.path.exists(path)
-if not isExist:
-    os.mkdir(path)
+logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
-pathMonserrat = "src/fonts/Montserrat/"
-pathOpen = "src/fonts/Opensans/"
+logger = logging.getLogger(__name__)
+
+
+class UUIDEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, UUID):
+            # if the obj is uuid, we simply return the value of uuid
+            return obj.hex
+        return json.JSONEncoder.default(self, obj)
+
+
+try:
+    basePath = '.'
+    path = os.path.abspath(os.path.join(basePath, '_temp'))
+
+    isExist = os.path.exists(path)
+    if not isExist:
+        os.mkdir(path)
+    pathMonserrat = os.path.abspath(
+        os.path.join(basePath, 'src/fonts/Montserrat/'))
+    pathOpen = os.path.abspath(os.path.join(basePath, 'src/fonts/Opensans/'))
+
+    if not os.path.exists(pathMonserrat):
+        print("Não consegui encontrar o caminho para %s" % (pathMonserrat))
+
+    if not os.path.exists(pathOpen):
+        print("Não consegui encontrar o caminho para %s" % (pathOpen))
+
+except Exception as e:
+    raise e
 
 
 class Database:
-    def __init__(self, loop, user: str, password: str) -> None:
-        self.user = user
-        self.password = password
-        self.host = '127.0.0.1'
+    def __init__(self, loop, user: str = None, password: str = None) -> None:
+
+        with open('config.json', 'r') as f:
+            self.cfg = Config(json.loads(f.read()))
+
+        self.pool: Optional[asyncpg.pool.Pool] = None
+
+        self.user = self.cfg.postgresql_user
+        self.password = self.cfg.postgresql_password
+        self.host = self.cfg.postgresql_host
         loop.create_task(self.connect())
 
+    #@retry(stop=stop_after_attempt(4), before_sleep=my_before_sleep)
     async def connect(self) -> None:
-        self.conn = await asyncpg.connect(user=self.user, password=self.password, host=self.host)
         try:
-            await self.conn.fetch('CREATE DATABASE spinovelleveling')
-        except:
-            pass
-        else:
-            await self.conn.close()
+            # self.conn = await asyncpg.connect(user=self.user, password=self.password, host=self.host)
+            self.pool = await asyncpg.create_pool(
+                user=self.user,
+                password=self.password,
+                database='%s' % (self.cfg.dbName),
+                host=self.host)
 
+        except Exception as err:
+            if isinstance(err, asyncpg.exceptions.PostgresSyntaxError):
+                # pass exception to function
+                pycopg_exception(err)
+
+            # MUDA CONEXÃO PRA 'NONE' EM CASO DE ERRO
+            # self.conn = None
+
+            await self.pool.close()
+        else:
+            # CRIA TABLES
+            async with self.pool.acquire() as conn:
+                async with conn.transaction():
+                    with open(os.path.join(__file__, '..\db', 'tables.sql'), 'r') as e:
+                        await conn.execute(e.read())
+        finally:
+            async with self.pool.acquire() as conn:
+                async with conn.transaction():
+                    await conn.execute("""
+                        SELECT 'CREATE DATABASE %(db)s' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '%(db)s')
+                    """ % {'db': self.cfg.dbName})
+
+                    await conn.execute("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
+
+
+    async def fetch(self, sql: str, *args: Any) -> list:
         try:
-            self.conn = await asyncpg.connect(user=self.user, password=self.password, database='spinovelleveling',
-                                              host=self.host)
-            await self.conn.fetch("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
-        except OperationalError as err:
-            # pass exception to function
+            async with self.pool.acquire() as conn:
+                async with conn.transaction():
+                    result = await conn.fetch(sql, *args)
+            return result
+        except Exception as err:
             pycopg_exception(err)
 
-            # set the connection to 'None' in case of error
-            self.conn = None
+    async def fetchval(self, sql: str, *args: Any) -> list:
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                result = await conn.fetchval(sql, *args)
+        return result
 
+    async def fetchrow(self, sql: str, *args: Any) -> list:
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                result = await conn.fetchrow(sql, *args)
+        return result
+
+    async def fetchList(self, sql: str, *args: Any) -> list:
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                result = '\n\n'.join([json.dumps(dict(x), ensure_ascii=False, cls=UUIDEncoder) for x in (await conn.fetch(sql, *args))])
+        return result
+
+    async def execute(self, sql: str, *args: Any) -> None:
         try:
+            async with self.pool.acquire() as conn:
+                async with conn.transaction():
+                    result = await conn.execute(sql, *args)
+            return result
 
-            await self.conn.fetch("""
-                CREATE TABLE IF NOT EXISTS public.badges
-                (
-                    name text COLLATE pg_catalog."default" NOT NULL,
-                    img text COLLATE pg_catalog."default" NOT NULL,
-                    canbuy boolean DEFAULT true,
-                    value integer DEFAULT 0,
-                    type text DEFAULT 'Badge',
-                    id uuid DEFAULT uuid_generate_v4(),
-                    unique(id)
-                )
-            """)
-            await self.conn.fetch("""
-                CREATE TABLE IF NOT EXISTS public.banners
-                (
-                    name text COLLATE pg_catalog."default" NOT NULL,
-                    img_loja text COLLATE pg_catalog."default" NOT NULL,
-                    img_perfil text COLLATE pg_catalog."default" NOT NULL,
-                    canbuy boolean DEFAULT true,
-                    value integer DEFAULT 0,
-                    type_ text DEFAULT 'Banner',
-                    id uuid DEFAULT uuid_generate_v4(),
-                    unique(name),
-                    unique(id)
-                )
-            """)
-            await self.conn.fetch("""
-                CREATE TABLE IF NOT EXISTS public.cars
-                (
-                    name text COLLATE pg_catalog."default" NOT NULL,
-                    localimg text COLLATE pg_catalog."default" NOT NULL,
-                    canbuy boolean DEFAULT true,
-                    value integer DEFAULT 0,
-                    type_ text DEFAULT 'Carro',
-                    id uuid DEFAULT uuid_generate_v4(),
-                    unique(name),
-                    unique(id)
-                )
-            """)
-            await self.conn.fetch("""
-                CREATE TABLE IF NOT EXISTS public.molds
-                (
-                    id uuid DEFAULT uuid_generate_v4(),
-                    name text COLLATE pg_catalog."default" NOT NULL,
-                    img text COLLATE pg_catalog."default" NOT NULL,
-                    imgxp text,
-                    img_bdg text NOT NULL,
-                    type_ text DEFAULT 'Moldura',
-                    img_profile text NOT NULL,
-                    value integer DEFAULT 0,
-                    canbuy boolean DEFAULT True,
-                    img_mold_title text,
-                    lvmin int DEFAULT 0,
-                    unique(name),
-                    unique(id)
-                )
-            """)
-            await self.conn.fetch("""
-                CREATE TABLE IF NOT EXISTS public.titles
-                (
-                    id uuid DEFAULT uuid_generate_v4(),
-                    name text COLLATE pg_catalog."default" NOT NULL,
-                    localimg text COLLATE pg_catalog."default" NOT NULL,
-                    canbuy boolean DEFAULT true,
-                    type_ text DEFAULT 'Titulo',
-                    value integer DEFAULT 0,
-                    unique(name),
-                    unique(id)
-                )
-            """)
-            await self.conn.fetch("""
-                CREATE TABLE IF NOT EXISTS public.utilizaveis
-                (
-                    id uuid DEFAULT uuid_generate_v4(),
-                    name text NOT NULL,
-                    canbuy boolean DEFAULT true,
-                    value integer DEFAULT 0,
-                    type_ text DEFAULT 'Utilizavel',
-                    img text NOT NULL
-                )
-            """)
-            await self.conn.fetch("""
-                CREATE TABLE IF NOT EXISTS public.itens
-                (
-                    id SERIAL PRIMARY KEY,
-                    name text COLLATE pg_catalog."default" NOT NULL,
-                    type_ text COLLATE pg_catalog."default" NOT NULL,
-                    value integer,
-                    img text COLLATE pg_catalog."default" NOT NULL,
-                    imgd text COLLATE pg_catalog."default",
-                    img_profile text COLLATE pg_catalog."default",
-                    lvmin integer,
-                    canbuy boolean,
-                    dest boolean,
-                    limitedtime timestamp without time zone,
-                    details CHAR,
-                    item_type_id uuid DEFAULT uuid_generate_v4(),
-                    CONSTRAINT unique_id UNIQUE (item_type_id)
-                )
-            """)
-            await self.conn.fetch("""
-                CREATE TABLE IF NOT EXISTS public.ranks
-                (
-                    lv integer NOT NULL,
-                    name text COLLATE pg_catalog."default" NOT NULL,
-                    r integer NOT NULL,
-                    g integer NOT NULL,
-                    b integer NOT NULL,
-                    badges text COLLATE pg_catalog."default",
-                    roleid text COLLATE pg_catalog."default",
-                    imgxp text COLLATE pg_catalog."default",
-                    id bigint,
-                    unique(name),
-                    unique(id)
-                )
-            """)
-            await self.conn.fetch("""
-                CREATE TABLE IF NOT EXISTS public.setup
-                (
-                    guild text COLLATE pg_catalog."default" NOT NULL,
-                    message_id text COLLATE pg_catalog."default" NOT NULL,
-                    role_id text COLLATE pg_catalog."default" NOT NULL,
-                    owner_id integer NOT NULL,
-                    unique(guild)
-                )
-            """)
-            await self.conn.fetch("""
-                CREATE TABLE IF NOT EXISTS public.shop
-                (
-                    id bigint,
-                    name text COLLATE pg_catalog."default" NOT NULL,
-                    value integer,
-                    lvmin integer,
-                    dest boolean,
-                    limitedtime timestamp without time zone,
-                    img text COLLATE pg_catalog."default",
-                    details text COLLATE pg_catalog."default",
-                    type_ text,
-                    unique(id)
-                )
-            """)
-            await self.conn.fetch("""
-                CREATE TABLE IF NOT EXISTS public.users
-                (
-                    id text COLLATE pg_catalog."default" NOT NULL,
-                    rank integer NOT NULL,
-                    xp integer NOT NULL,
-                    xptotal integer NOT NULL,
-                    info text COLLATE pg_catalog."default",
-                    spark integer DEFAULT 0,
-                    inventory_id uuid DEFAULT uuid_generate_v4(),
-                    birth text DEFAULT '???',
-                    ori integer DEFAULT 0,
-                    rank_id bigint,
-                    user_name text NOT NULL,
-                    unique(id)
-                )
-            """)
-            await self.conn.fetch("""
-                CREATE TABLE IF NOT EXISTS public.iventory
-                (
-                    ivent_id uuid,
-                    itens jsonpath,
-                    car uuid,
-                    title uuid,
-                    mold uuid,
-                    banner uuid,
-                    badge json,
-                    unique(ivent_id)
-                )
-            """)
-            # END CREATE
         except Exception as err:
-            if isinstance(err, asyncpg.exceptions.PostgresSyntaxError):
-                # pass exception to function
-                pycopg_exception(err)
-            else:
-                pycopg_exception(err)
-
-    async def fetch(self, sql: str) -> list:
-        try:
-            return await self.conn.fetch(sql)
-        except Exception as err:
-            if isinstance(err, asyncpg.exceptions.PostgresSyntaxError):
-                # pass exception to function
-                pycopg_exception(err)
-            else:
-                pycopg_exception(err)
-
-    async def fetchList(self, sql: str) -> list:
-        return '\n\n'.join([json.dumps(dict(x), ensure_ascii=False) for x in (await self.conn.fetch(sql))])
+            pycopg_exception(err)
 
 
 # GRANDIENT
@@ -391,13 +284,14 @@ class Rank:
         # /equipar #ID [diff]
         self.montserrat_extrabolditalic_equip = ImageFont.truetype(
             os.path.join(pathMonserrat, 'MontserratExtraBoldItalic.ttf'), 25)
-       # antigas 
-        
+       # antigas
+
         self.class_font_montserrat_regular_nivel = ImageFont.truetype(
             os.path.join(pathMonserrat, 'MontserratRegular.ttf'), 30)
-        
+
         self.XPRadiateSansBoldCondensed = ImageFont.truetype(
             os.path.join(pathOpen, 'RadiateSansBoldCondensed.ttf'), 85)
+
     def add_corners(self, im, rad):
         size = im.size
         mask = Image.new('L', size, 0)
@@ -1155,7 +1049,13 @@ class Rank:
                      font=self.class_font_role, anchor="ms", fill=(219, 239, 255))
 
         xp_im = Image.open(rf"{imgxp}")
-        im1 = xp_im.crop((0, 0, ((int(xp / needed_xp * 100)) * 6), 81))
+        #((already_earned / to_reach) * 100)
+
+        # print(xp_im.size[0])
+        # print(int((xp / needed_xp) * xp_im.size[0]))
+        # print(xp / needed_xp)
+
+        im1 = xp_im.crop((0, 0, int((xp / needed_xp) * xp_im.size[0]), 81))
         bg.paste(im1, (190, 767), im1)
 
         color = xp_im.getpixel(((xp_im.size[0]) - 5, 7))
@@ -1276,11 +1176,11 @@ class Rank:
                     if count >= total:
                         break
                     list_itens = list(items[count].values())
-                    
+
                     itemImg = Image.open(
-                            list_itens[0]['img']).convert("RGBA")
+                        list_itens[0]['img']).convert("RGBA")
                     if str(list_itens[0]['type']) == "Banner":
-                        
+
                         itemImg = itemImg.resize(
                             (235, 105), Image.Resampling.NEAREST)
                         itemImg = self.add_corners(itemImg, 20)
@@ -1356,7 +1256,7 @@ class Rank:
                 u = uuid.uuid4().hex
 
                 plain.save(f'{os.path.join(path, u)}.jpg',
-                           'JPEG') # optimize=True
+                           'JPEG')  # optimize=True
                 # buffer.seek(0)
 
             except Exception as i:
@@ -1367,7 +1267,8 @@ class Rank:
 
     @staticmethod
     def neededxp(level: str) -> int:
-        return 100 + level * 300
+        return ((level * level) * 300) + 100
+
 
 class shopNew:
     def __init__(self) -> None:
@@ -1563,7 +1464,6 @@ class shopNew:
                     img = lendCat_image
 
                 lar = (itemImg.size[0], itemImg.size[1])
-
 
                 if larg_baixo > 840:
                     # ROW 1

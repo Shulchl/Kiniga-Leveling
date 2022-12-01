@@ -3,9 +3,20 @@ from __future__ import annotations
 
 class Config:
     def __init__(self, cfg: dict) -> None:
-        self.bot_token = cfg['bot_token']
+        # COISAS DA DATABASE 
+        self.dbName = cfg['db_Name']
         self.postgresql_user = cfg['postgresql_user']
         self.postgresql_password = cfg['postgresql_password']
+        self.postgresql_host = cfg['postgresql_host']
+        
+        # COISAS DO EMAIL DO BOT
+        self.bot_mail = cfg['bot_mail']
+        self.bot_mailpass = cfg['bot_mailpass']
+        self.bot_mailhost = cfg['bot_mailhost']
+        
+        # COISAS DO DISCORD
+        self.bot_token = cfg['bot_token']
+        
         self.min_message_xp = cfg['min_message_xp']
         self.max_message_xp = cfg['max_message_xp']
         self.coinsmin = cfg['coinsmin']

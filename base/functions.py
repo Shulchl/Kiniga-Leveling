@@ -12,40 +12,38 @@ import aiohttp
 import random
 import requests
 import asyncpg
-import re
 import numpy as np
 import asyncpg
-import ast
 import json
-
-from typing import final
+import sys
 
 from io import BytesIO
-from pkg_resources import EmptyProvider
+from urllib.request import urlopen
+from typing import Optional, Literal
+from bs4 import BeautifulSoup
 
 from base.struct import Config
 from base.utilities import utilities
-
-from urllib.request import urlopen
-
-from psycopg2 import OperationalError, errorcodes, errors
-from base.db.database import print_psycopg2_exception as pycopg_exception
-
-from typing import Optional, Literal
-
-from bs4 import BeautifulSoup
-
+from base.db.pgUtils import print_psycopg2_exception as pycopg_exception
 
 __all__ = ['Functions']
 
 
 def __init__(self, bot) -> None:
     self.bot = bot
-    self.db = utilities.database(
-        self.bot.loop, self.bot.cfg.postgresql_user, self.bot.cfg.postgresql_password)
+    self.db = utilities.database(self.bot.loop)
 
     with open('config.json', 'r') as f:
         self.cfg = Config(json.loads(f.read()))
+
+
+def print_progress_bar(index, total, label):
+    n_bar = 20  # Progress bar width
+    progress = index / total
+    sys.stdout.write('\r')
+    sys.stdout.write(
+        f"[{'=' * int(n_bar * progress):{n_bar}s}] {int(100 * progress)}%  {label}")
+    sys.stdout.flush()
 
 
 def convert(time):
@@ -107,25 +105,54 @@ async def starterRoles(self, msg):
     # x = []
     colors = self.bot.cfg.colors
     count = 0
+
+    # await self.db.execute("""    
+    #     insert into ranks(name, badges, lvmin) select name, img_bdg, lvmin from molds on conflict (name) do nothing returning lvmin;
+    #""")
+
     for i, value in enumerate(classes):
-
-        if i >= len(classes):
-            break
-
+        
         z = colors[i]
         # x = tuple((z[0], z[1], z[2]))
         # ''.join((f"{z[0]}, {z[1]}, {z[2]}"))
         rankRole = discord.utils.find(lambda r: r.name == value, msg.guild.roles) or await msg.guild.create_role(
             name=str(value), color=discord.Colour.from_rgb(z[0], z[1], z[2]))
+        imgPathName = '-'.join(value.split())
         try:
-            await self.db.fetch(
-                "INSERT INTO ranks (lv, name, r, g, b, badges, roleid, imgxp) VALUES "
-                f" ({count}, \'{value}\', {z[ 0 ]}, {z[ 1 ]}, {z[ 2 ]}, \'src/imgs/badges/#{i}.png\', "
-                f" {rankRole.id}, \'src/imgs/molduras/molduras-perfil/xp-bar/#{i}xp.png\')"
-            )
+
+            await self.db.execute("""
+                INSERT INTO ranks (
+                    name, lvmin, r, g, b, roleid, badges, imgxp
+                )
+                VALUES (
+                    '%(rank_name)s', %(lv)s, %(r)s, %(g)s, %(b)s, 
+                    '%(roleid)s', '%(badges)s', '%(imgxp)s' 
+                )
+            """ % {
+                'rank_name': str(value), 
+                'lv': int(count),
+                'r': int(z[0]),
+                'g': int(z[1]),
+                'b': int(z[2]),
+                'roleid': str(rankRole.id),
+                'badges': 'src/imgs/badges/rank/%s.png' % (imgPathName, ),
+                'imgxp': 'src/imgs/molduras/molduras-perfil/xp-bar/%s.png' % (imgPathName, ),})
+
+            # await self.db.fetch("""
+            #    INSERT INTO ranks
+            #     (lv, name, r, g, b, roleid, badges, imgxp) VALUES
+            #     (%s, \'%s\', %s, %s, %s, %s,
+            #     \'src/imgs/badges/rank/#%s.png\',
+            #     \'src/imgs/molduras/molduras-perfil/xp-bar/#%sxp.png\')
+            # """ % (i*10 if i != 0 else 10, value, z[0], z[1], z[2], rankRole.id, i, i))
+
         except Exception as o:
             await msg.channel.send(f"`{o}`")
-        count += 10
+            raise
+        else:
+            print_progress_bar(i, len(classes), " progresso de classes criadas")
+        finally:    
+            count += 10
 
 
 async def starterItens(self):
@@ -134,302 +161,95 @@ async def starterItens(self):
     {Muuita preguiça de fazer loop pra tudo, só usei os que eu já tinha }
 
     """
+    # titles = [filename for filename in os.listdir(
+    #     'src/imgs/titulos') if filename.endswith('.png')]
+    # title_value = [12000, 25000, 69000, 70000, 125000, 178000, 200000]
+
     banners = [filename for filename in os.listdir(
         'src/imgs/banners') if filename.endswith('.png')]
-    titles = [filename for filename in os.listdir(
-        'src/imgs/titulos') if filename.endswith('.png')]
-    title_value = [12000, 25000, 69000, 70000, 125000, 178000, 200000]
-    print(banners)
-    print(titles)
+
+    molduras = [filename for filename in os.listdir(
+        'src/imgs/molduras/molduras-loja') if filename.endswith('.png')]
 
     try:
         # START MOLDS INSERT
-        await self.db.fetch("""
-            INSERT INTO molds (
-                    name, img, imgxp, img_bdg, img_profile, 
-                    lvmin, value, img_mold_title, canbuy
-                ) VALUES ('Novato',
-                        'src/imgs/molduras/molduras-loja/#0.png',
-                        'src/imgs/molduras/molduras-perfil/xp-bar/#0xp.png',
-                        'src/imgs/badges/#0.png',
-                        'src/imgs/molduras/molduras-perfil/bordas/#0.png', 
-                        0, 1000,
-                        'src/imgs/molduras/molduras-perfil/titulos/#0E.png', 
-                        False
-                ) ON CONFLICT (name) DO NOTHING
-        """)
-        await self.db.fetch("""
-            INSERT INTO molds (
-                    name, img, imgxp, img_bdg, img_profile, 
-                    lvmin, value, img_mold_title
-                ) VALUES ('Soldado Nadir',
-                        'src/imgs/molduras/molduras-loja/#1.png',
-                        'src/imgs/molduras/molduras-perfil/xp-bar/#1xp.png',
-                        'src/imgs/badges/#0.png',
-                        'src/imgs/molduras/molduras-perfil/bordas/#1.png', 
-                        10, 500000,
-                        'src/imgs/molduras/molduras-perfil/titulos/#1E.png' 
-                ) ON CONFLICT (name) DO NOTHING
-        """)
-        await self.db.fetch("""
-            INSERT INTO molds (
-                    name, img, imgxp, img_bdg, img_profile, 
-                    lvmin, value, img_mold_title
-                ) VALUES ('Sargento Aurora',
-                        'src/imgs/molduras/molduras-loja/#2.png',
-                        'src/imgs/molduras/molduras-perfil/xp-bar/#2xp.png',
-                        'src/imgs/badges/#0.png',
-                        'src/imgs/molduras/molduras-perfil/bordas/#2.png', 
-                        20, 1000000,
-                        'src/imgs/molduras/molduras-perfil/titulos/#2E.png' 
-                ) ON CONFLICT (name) DO NOTHING
-        """)
-        await self.db.fetch("""
-            INSERT INTO molds (
-                    name, img, imgxp, img_bdg, img_profile, 
-                    lvmin, value, img_mold_title
-                ) VALUES ('Tenente Zênite',
-                        'src/imgs/molduras/molduras-loja/#3.png',
-                        'src/imgs/molduras/molduras-perfil/xp-bar/#3xp.png',
-                        'src/imgs/badges/#0.png',
-                        'src/imgs/molduras/molduras-perfil/bordas/#3.png', 
-                        30, 2000000,
-                        'src/imgs/molduras/molduras-perfil/titulos/#3E.png' 
-                ) ON CONFLICT (name) DO NOTHING
-        """)
-        await self.db.fetch("""
-            INSERT INTO molds (
-                    name, img, imgxp, img_bdg, img_profile, 
-                    lvmin, value, img_mold_title
-                ) VALUES ('Capitão Solar',
-                        'src/imgs/molduras/molduras-loja/#4.png',
-                        'src/imgs/molduras/molduras-perfil/xp-bar/#4xp.png',
-                        'src/imgs/badges/#0.png',
-                        'src/imgs/molduras/molduras-perfil/bordas/#4.png', 
-                        40, 4000000,
-                        'src/imgs/molduras/molduras-perfil/titulos/#4E.png' 
-                ) ON CONFLICT (name) DO NOTHING
-        """)
-        await self.db.fetch("""
-            INSERT INTO molds (
-                    name, img, imgxp, img_bdg, img_profile, 
-                    lvmin, value, img_mold_title
-                ) VALUES ('Major Solar',
-                        'src/imgs/molduras/molduras-loja/#5.png',
-                        'src/imgs/molduras/molduras-perfil/xp-bar/#5xp.png',
-                        'src/imgs/badges/#0.png',
-                        'src/imgs/molduras/molduras-perfil/bordas/#5.png', 
-                        50, 6500000,
-                        'src/imgs/molduras/molduras-perfil/titulos/#5E.png' 
-                ) ON CONFLICT (name) DO NOTHING
-        """)
-        await self.db.fetch("""
-            INSERT INTO molds (
-                    name, img, imgxp, img_bdg, img_profile, 
-                    lvmin, value, img_mold_title
-                ) VALUES ('Coronel Umbra',
-                        'src/imgs/molduras/molduras-loja/#6.png',
-                        'src/imgs/molduras/molduras-perfil/xp-bar/#6xp.png',
-                        'src/imgs/badges/#0.png',
-                        'src/imgs/molduras/molduras-perfil/bordas/#6.png', 
-                        60, 8000000,
-                        'src/imgs/molduras/molduras-perfil/titulos/#6E.png' 
-                ) ON CONFLICT (name) DO NOTHING
-        """)
-        await self.db.fetch("""
-            INSERT INTO molds (
-                    name, img, imgxp, img_bdg, img_profile, 
-                    lvmin, value, img_mold_title
-                ) VALUES ('General Blazar',
-                        'src/imgs/molduras/molduras-loja/#7.png',
-                        'src/imgs/molduras/molduras-perfil/xp-bar/#7xp.png',
-                        'src/imgs/badges/#0.png',
-                        'src/imgs/molduras/molduras-perfil/bordas/#7.png', 
-                        70, 100000000,
-                        'src/imgs/molduras/molduras-perfil/titulos/#7E.png' 
-                ) ON CONFLICT (name) DO NOTHING
-        """)
-        await self.db.fetch("""
-            INSERT INTO molds (
-                    name, img, imgxp, img_bdg, img_profile, 
-                    lvmin, value, img_mold_title
-                ) VALUES ('Marechal Quasar',
-                        'src/imgs/molduras/molduras-loja/#8.png',
-                        'src/imgs/molduras/molduras-perfil/xp-bar/#8xp.png',
-                        'src/imgs/badges/#0.png',
-                        'src/imgs/molduras/molduras-perfil/bordas/#8.png', 
-                        80, 100000000,
-                        'src/imgs/molduras/molduras-perfil/titulos/#8E.png' 
-                ) ON CONFLICT (name) DO NOTHING
-        """)
+        for i, item in enumerate(molduras):
+            print_progress_bar(
+                i, len(molduras), " progresso de molduras criadas")
+            item_name = ' '.join(item.split('-'))[0:-4]
+            try:
+                await self.db.execute("""
+                    INSERT INTO molds (
+                        name, lvmin, canbuy, 
+                        img, 
+                        imgxp, 
+                        img_bdg, 
+                        img_profile, 
+                        img_mold_title
+                    ) VALUES ('%(name)s', 0, True,
+                        'src/imgs/molduras/molduras-loja/%(item)s',
+                        'src/imgs/molduras/molduras-perfil/xp-bar/%(item)s',
+                        'src/imgs/badges/rank/%(item)s',
+                        'src/imgs/molduras/molduras-perfil/bordas/rank/%(item)s', 
+                        'src/imgs/molduras/molduras-perfil/titulos/%(item)s'
+                    ) ON CONFLICT (name) DO NOTHING
+                """ % {'name': item_name, 'item': item, })
+            except Exception as o:
+                print(o)
+                raise
+            else:
+                print_progress_bar(i, len(molduras), " progresso de classes criadas")
         # END MOLDS INSERT
 
         # START BANNERS INSERT
-        await self.db.fetch(f"""
-            INSERT INTO banners (name, img_loja,
-                img_perfil, canbuy, value
-                ) VALUES ('Explosão Solar',
-                            'src/imgs/banners/{banners[0]}',
-                            'src/imgs/banners/{banners[0]}',
-                            true, 55000
-                ) ON CONFLICT (name) DO NOTHING
-        """)
-        await self.db.fetch(f"""
-            INSERT INTO banners (name, img_loja,
-                img_perfil, canbuy, value
-                ) VALUES ('Explosão Negativa',
-                            'src/imgs/banners/{banners[1]}',
-                            'src/imgs/banners/{banners[1]}',
-                            true, 5500000
-                ) ON CONFLICT (name) DO NOTHING
-        """)
-        await self.db.fetch(f"""
-            INSERT INTO banners (name, img_loja,
-                img_perfil, canbuy, value
-                ) VALUES ('Plenata Magnético',
-                            'src/imgs/banners/{banners[2]}',
-                            'src/imgs/banners/{banners[2]}',
-                            true, 5500000
-                ) ON CONFLICT (name) DO NOTHING
-        """)
+
+        for i, item in enumerate(banners):
+            print_progress_bar(
+                i, len(banners), " progresso de banners criadas")
+            item_name = ' '.join(item.split('-'))[0:-4]
+            try:
+                await self.db.execute("""
+                    INSERT INTO banners (
+                        name, 
+                        canbuy,
+                        img_loja, 
+                        img_perfil ) 
+                    VALUES (
+                        '%(name)s', true,
+                        'src/imgs/banners/%(item)s',
+                        'src/imgs/banners/%(item)s' ) 
+                    ON CONFLICT (name) DO NOTHING 
+                """ % {'name': item_name, 'item': item, })
+            except Exception as o:
+                print(o)
+                raise
+            else:
+                print_progress_bar(i, len(banners), " progresso de banners criadas")
+                
         # END BANNERS INSERT
 
-        # START TITLES INSERT
-        count = 0
-        for i in titles:
-            # START TITLES INSERT
-            nome = re.search(r'\-(.*?).png', i).group(1)
-            print(nome, i, title_value[int(titles.index(i))])
+        # ADD BADGES INSERT
+        await self.db.execute("""
+            insert into badges(name, img, lvmin) select name, img_bdg, lvmin from molds on conflict (name) do nothing;
+        """)
 
-            await self.db.fetch(f"""
-                INSERT INTO titles (
-                    name, localimg, canbuy, value
-                ) VALUES ('{nome}', 
-                        'src/imgs/titulos/{i}',
-                        true, {title_value[int(titles.index(i))]}
-                ) ON CONFLICT (name) DO NOTHING
-            """)
-            count += 1
+        # TITULOS NÃO SÃO MAIS SUPORTADOS
+
+        # count = 0
+        # for i in titles:
+        #     # START TITLES INSERT
+        #     nome = re.search(r'\-(.*?).png', i).group(1)
+        #     print(nome, i, title_value[int(titles.index(i))])
+        #     await self.db.execute(f"""
+        #         INSERT INTO titles (
+        #             name, localimg, canbuy, value
+        #         ) VALUES ('{nome}',
+        #                 'src/imgs/titulos/{i}',
+        #                 true, {title_value[int(titles.index(i))]}
+        #         ) ON CONFLICT (name) DO NOTHING
+        #     """)
+        #     count += 1
         # END TITLES INSERT
-
-        # START ALTER
-        await self.db.fetch("""
-            ALTER TABLE IF EXISTS public.itens
-            ADD CONSTRAINT banners_detail FOREIGN KEY 
-            (name, item_type_id)
-            REFERENCES public.banners 
-            (name, id) MATCH SIMPLE
-            ON UPDATE CASCADE
-            ON DELETE CASCADE
-            NOT VALID
-        """)
-        await self.db.fetch("""
-            ALTER TABLE IF EXISTS public.itens
-            ADD CONSTRAINT molds_detail FOREIGN KEY 
-            (name, item_type_id)
-            REFERENCES public.molds 
-            (name, id) MATCH SIMPLE
-            ON UPDATE CASCADE
-            ON DELETE CASCADE
-            NOT VALID
-        """)
-        await self.db.fetch("""
-            ALTER TABLE IF EXISTS public.itens
-            ADD CONSTRAINT titles_detail FOREIGN KEY (name, item_type_id)
-            REFERENCES public.titles (name, id) MATCH SIMPLE
-            ON UPDATE CASCADE
-            ON DELETE CASCADE
-            NOT VALID
-        """)
-        await self.db.fetch("""
-            ALTER TABLE IF EXISTS public.itens
-            ADD CONSTRAINT utili_detail FOREIGN KEY (name, id)
-            REFERENCES public.utilizaveis (name, id) MATCH SIMPLE
-            ON UPDATE CASCADE
-            ON DELETE CASCADE
-            NOT VALID;
-        """)
-        await self.db.fetch("""
-            ALTER TABLE IF EXISTS public.ranks
-            ADD FOREIGN KEY (name, badges)
-            REFERENCES public.molds (name, img_bdg) MATCH SIMPLE
-            ON UPDATE CASCADE
-            ON DELETE CASCADE
-            NOT VALID;
-        """)
-        await self.db.fetch("""
-            ALTER TABLE IF EXISTS public.setup
-            ADD CONSTRAINT owner_id FOREIGN KEY (owner_id)
-            REFERENCES public.users (id) MATCH SIMPLE
-            ON UPDATE CASCADE
-            ON DELETE CASCADE
-            NOT VALID;
-        """)
-        await self.db.fetch("""
-            ALTER TABLE IF EXISTS public.shop
-            ADD CONSTRAINT itens_details FOREIGN KEY (id)
-            REFERENCES public.itens (id) MATCH SIMPLE
-            ON UPDATE CASCADE
-            ON DELETE CASCADE
-            NOT VALID;
-        """)
-        await self.db.fetch("""
-            ALTER TABLE IF EXISTS public.users
-            ADD CONSTRAINT rank_id FOREIGN KEY (rank_id)
-            REFERENCES public.ranks (id) MATCH SIMPLE
-            ON UPDATE CASCADE
-            ON DELETE CASCADE
-            NOT VALID;
-        """)
-        await self.db.fetch("""
-            ALTER TABLE IF EXISTS public.users
-            ADD CONSTRAINT ivent_id FOREIGN KEY (inventory_id)
-            REFERENCES public.iventory (ivent_id) MATCH SIMPLE
-            ON UPDATE CASCADE
-            ON DELETE CASCADE
-            NOT VALID;
-        """)
-        await self.db.fetch("""
-            ALTER TABLE IF EXISTS public.iventory
-            ADD CONSTRAINT banner FOREIGN KEY (banner)
-            REFERENCES public.banners (id) MATCH SIMPLE
-            ON UPDATE CASCADE
-            ON DELETE CASCADE
-            NOT VALID;
-        """)
-        await self.db.fetch("""
-            ALTER TABLE IF EXISTS public.iventory
-            ADD CONSTRAINT title FOREIGN KEY (title)
-            REFERENCES public.titles (id) MATCH SIMPLE
-            ON UPDATE CASCADE
-            ON DELETE CASCADE
-            NOT VALID;
-        """)
-        await self.db.fetch("""
-            ALTER TABLE IF EXISTS public.iventory
-            ADD CONSTRAINT mold FOREIGN KEY (mold)
-            REFERENCES public.molds (id) MATCH SIMPLE
-            ON UPDATE CASCADE
-            ON DELETE CASCADE
-            NOT VALID;
-        """)
-        await self.db.fetch("""
-            ALTER TABLE IF EXISTS public.iventory
-            ADD CONSTRAINT car FOREIGN KEY (car)
-            REFERENCES public.cars (id) MATCH SIMPLE
-            ON UPDATE CASCADE
-            ON DELETE CASCADE
-            NOT VALID;
-        """)
-
-        # ADD BADGES
-        try:
-            await self.db.fetch("""
-                insert into badges(name, img, lvmin) select name, img_bdg, lvmin from molds on conflict (name) do nothing;
-            """)
-
-        except Exception as e:
-            return "`Não foi possível inserir as badges nos itens, provavelmente porque não tem nenhuma moldura ainda. \n %s`" % (e, )
 
     except Exception as err:
         if isinstance(err, asyncpg.exceptions.PostgresSyntaxError):
@@ -440,7 +260,6 @@ async def starterItens(self):
 
 
 async def get_roles(member: discord.Member, guild, roles=[
-
     855117820814688307
 ]):
     # roles = [943171518895095869,
@@ -504,8 +323,8 @@ def banner_image_choose():
 
 async def get_iventory(self, memberId):
     id = await self.db.fetch("""
-        SELECT itens::jsonb FROM iventory WHERE ivent_id=(
-                SELECT inventory_id FROM users WHERE id = ('%s')
+        SELECT itens::jsonb FROM iventory WHERE iventory_id=(
+                SELECT iventory_id FROM users WHERE id = ('%s')
         )
     """ % (memberId, )
     )
@@ -513,7 +332,7 @@ async def get_iventory(self, memberId):
 
 
 async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "add"]], iventory_key: list = None, newValue: list = None):
-    iventoryId = await self.db.fetch("SELECT inventory_id FROM users WHERE id = (\'%s\')" % (member, ))
+    iventoryId = await self.db.fetch("SELECT iventory_id FROM users WHERE id = (\'%s\')" % (member, ))
     if iventoryId:
         iventoryId = iventoryId[0][0]
 
@@ -529,7 +348,7 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
                     SELECT * FROM jsonb_each_text(
                         (
                             SELECT %s FROM iventory
-                            WHERE ivent_id=(\'%s\')
+                            WHERE iventory_id=(\'%s\')
                         )
                     );
                 """ % (str(itens), iventoryId, )
@@ -538,7 +357,7 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
             res = await self.db.fetch("""
                 SELECT * FROM jsonb_each_text(
                     (
-                        SELECT %s FROM iventory WHERE ivent_id=(\'%s\')
+                        SELECT %s FROM iventory WHERE iventory_id=(\'%s\')
                     )
                 )
                     
@@ -550,7 +369,7 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
     elif opt == "remove":
         res - await self.db.fetch("""
             SELECT to_jsonb(
-                SELECT %s FROM iventory WHERE ivent_id=(\'%s\')
+                SELECT %s FROM iventory WHERE iventory_id=(\'%s\')
             )
             - '%s'::jsonb
         
@@ -581,7 +400,7 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
                             '1',
                             true
                         )
-                    ) WHERE ivent_id=('%s')
+                    ) WHERE iventory_id=('%s')
 
                     RETURNING itens::jsonb;
                 """ % (itens[0], item_group[0][0], itensId[0], iventoryId)
@@ -592,44 +411,42 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
                         UPDATE iventory SET itens = (
                             SELECT jsonb_set(
                                 itens::jsonb,
-                                '{%s, %s, %s}'::text[],
+                                '{%(i)s, %(iGoup)s, %(iID)s}'::text[],
                                 (SELECT 
                                     (
                                         SELECT CAST(
-                                            itens::jsonb->'%s'->'%s'->'%s' as INTEGER
-                                        ) + 1 as %s_rank FROM iventory 
-                                        WHERE ivent_id=('%s')
+                                            itens::jsonb->'%(i)s'->'%(iGoup)s'->'%(iID)s' as INTEGER
+                                        ) + 1 as %(i)s_rank FROM iventory 
+                                        WHERE iventory_id=('%(iINV)s')
                                     )::text
 
                                 )::jsonb
                             )
-                        ) WHERE ivent_id=(
-                            '%s'
+                        ) WHERE iventory_id=(
+                            '%(iINV)s'
                         )
 
                         RETURNING itens::jsonb;
-                    """ % (itens[0], item_group[0][0], itensId[0],
-                           itens[0], item_group[0][0], itensId[0],
-                           itens[0], iventoryId, iventoryId)
+                    """ % {'i': itens[0], 'iGoup': item_group[0][0], 'iID': itensId[0], 'iINV': iventoryId}
                     )
                 else:
                     raise error
 
         else:
-            for i in range(len(itens)):
+            for i, value in enumerate(itens):
                 try:
                     res = await self.db.fetch("""
                         UPDATE iventory SET itens = (
                             SELECT jsonb_insert(
                                 itens::jsonb,
-                                '{%s, ids, %s}'::text[],
+                                '{%(i)s, ids, %(iID)s}'::text[],
                                 '1'::jsonb,
                                 true
                             )
-                        ) WHERE ivent_id=(\'%s\')
+                        ) WHERE iventory_id=(\'%(iINV)s\')
                         
-                        RETURNING itens::json->'%s'
-                    """ % (str(itens[i]), itensId[i], iventoryId, str(itens[i]), )
+                        RETURNING itens::json->'%(i)s'
+                    """ % {'i': str(itens[i]), 'iID': itensId[i], 'iINV': iventoryId, }
                     )
                 except Exception as error:
                     if (isinstance(error, AttributeError)):
@@ -637,35 +454,27 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
                             UPDATE iventory SET itens = (
                                 SELECT jsonb_insert(
                                     itens::jsonb,
-                                    '{%s, ids, %s}'::text[],
+                                    '{%(i)s, ids, %(iID)s}'::text[],
                                     (SELECT 
                                         (
                                             SELECT CAST(
-                                                itens::jsonb->'%s'->'ids'->'%s' as INTEGER
-                                            ) + 1 as %s_rank FROM iventory 
-                                            WHERE ivent_id=(\'%s\')
+                                                itens::jsonb->'%(i)s'->'ids'->'%(iID)s' as INTEGER
+                                            ) + 1 as %(i)s_rank FROM iventory 
+                                            WHERE iventory_id=(\'%(iINV)s\')
                                         )::text
 
                                     )::jsonb,
                                     true
                                 )
-                            ) WHERE ivent_id=(\'%s\')
+                            ) WHERE iventory_id=(\'%(iINV)s\')
                             
-                            RETURNING itens::json->'%s'
-                        """ % (str(itens[i]), itensId[i], str(itens[i]), itensId[i], 
-                               str(itens[i]), iventoryId, iventoryId, str(itens[i]))
+                            RETURNING itens::json->'%(i)s'
+                        """ % {'i': str(itens[i]), 'iID': itensId[i], 'iINV': iventoryId, }
                         )
-                    elif (isinstance(error, TypeError)):
-                        res = error
-                        print(res)
-                    else:
-                        res = error
-                        print(res)
-                    
+
     return res
-
-
 # FUNÇÕES DE NOVO AUTOR
+
 
 async def sendEmb(user, author):
     try:
@@ -721,8 +530,9 @@ async def checkRelease(self, interaction):
         c = discord.Embed(title="Ocorreu um erro")
         for i, message in enumerate(messages):
             # print(message.embeds[0].to_dict())
-            c = message.embeds[0] if len(message.embeds) >= 1 else message.content
-        
+            c = message.embeds[0] if len(
+                message.embeds) >= 1 else message.content
+
         return c
     except Exception as i:
         raise i
@@ -743,7 +553,8 @@ async def getRelease(self, interaction):
                         requests.get(l['href']).text, 'lxml')
                     link = l['href']  # link
                     titulo = title.get_text()  # titulo da história
-                    author = novel.find('div', attrs={'class': 'author-content'}).find_all('a', href=True)[0]  # nome do autor
+                    author = novel.find('div', attrs={
+                                        'class': 'author-content'}).find_all('a', href=True)[0]  # nome do autor
                     # sinopse da história
                     s = novel.find(
                         'div', attrs={'class': 'summary__content'})
@@ -799,9 +610,10 @@ async def getRelease(self, interaction):
                     except Exception as a:
 
                         print(f"Ocorreu um erro no embed\n\n{a}")
-                        interaction.user.send(embed = discord.Embed(
+                        interaction.user.send(embed=discord.Embed(
                             title=f"Erro!",
-                            description="\nUm erro ocorreu devido ao seguinte problema: \n\n{}.".format(a),
+                            description="\nUm erro ocorreu devido ao seguinte problema: \n\n{}.".format(
+                                a),
                             color=0x00ff33).set_author(
                             name="Kiniga Brasil",
                             url='https://kiniga.com/',

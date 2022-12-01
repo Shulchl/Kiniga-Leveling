@@ -10,7 +10,6 @@ import asyncio
 from discord.ext import commands
 
 from base.struct import Config
-import line_profiler
 
 TEST_GUILD = discord.Object(id=943170102759686174)
 
