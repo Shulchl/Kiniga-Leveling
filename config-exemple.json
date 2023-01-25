@@ -6,7 +6,7 @@
     "postgresql_host": "localhost",
 
     "bot_mail": "",
-    "bot_maipass": "",
+    "bot_mailpass": "",
     "bot_mailhost": "",
 
     "tidList": "",

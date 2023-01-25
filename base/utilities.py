@@ -549,7 +549,8 @@ class Rank:
             bg_draw.rounded_rectangle(
                 [(rolePosition, 168), (rolePosition + largText + 22, 224)], 28, fill=(133, 133, 133), width=3)
             bg_draw.text((rolePosition + largText + 12, 206), "Membro", font=self.class_font_role, fill=(
-                0, 45, 62), anchor="rs", spacing=5)
+                0, 45,
+62), anchor="rs", spacing=5)
 
             rolePosition = rolePosition + 166
 
