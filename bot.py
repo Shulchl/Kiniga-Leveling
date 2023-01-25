@@ -16,6 +16,11 @@ TEST_GUILD = discord.Object(id=943170102759686174)
 with open('config.json', 'r', encoding='utf-8') as f:
     cfg = Config(json.loads(f.read()))
 
+basePath = '.'
+path = os.path.abspath(os.path.join(basePath, '_temp'))
+isExist = os.path.exists(path)
+    if not isExist:
+        os.mkdir(path)
 
 def log_handler() -> logging.Logger:
     logger = logging.getLogger()

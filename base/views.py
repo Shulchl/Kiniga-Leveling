@@ -148,8 +148,9 @@ class reviewButton(View):
     async def cancel_button(self, interaction, button):
         for i in self.children:
             i.disabled = True
-        await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(content='', view=self)
         self.stop()
+
 class publishButton(View):
     def __init__(self, user_discord, hid, message) -> None:
         super().__init__()
@@ -263,7 +264,7 @@ class publishButton(View):
                 await interaction.response.edit_message(content=res)
             elif (isinstance(res, discord.Embed)):
                 newres = res.to_dict()
-                newres["title"] = "História %s Publicada" % (self.hid,)
+                newres["title"] = "História %s publicada" % (self.hid,)
                 res = Embed.from_dict(newres)
                 await interaction.response.edit_message(embed=res)
         except: 
@@ -272,7 +273,7 @@ class publishButton(View):
                 await interaction.channel.send(content=res)
             elif (isinstance(res, discord.Embed)):
                 newres = res.to_dict()
-                newres["title"] = "História %s Publicada" % (self.hid,)
+                newres["title"] = "História %s não publicada" % (self.hid,)
                 res = Embed.from_dict(newres)
                 await interaction.channel.send(embed=res)
         #await self.message.edit(content="**Aceita** (#%s)" % (self.hid))

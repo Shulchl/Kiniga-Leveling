@@ -11,7 +11,9 @@ cmds/__pycache__
 base/db/__pycache__
 profile_output.txt
 __pycache__/bot.cpython-310.pyc
-src
+src/*.png
+src/*.jpg
 bot.py.lprof
 tests
 _temp
+!src/imgs/extra

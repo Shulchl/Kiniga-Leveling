@@ -536,8 +536,7 @@ class Rank:
                     largText + 12 + spacing,
                     role_top + 32), list_roles[0]['name'],
                     font=self.class_font_role,
-                    fill=(
-                    0, 45, 62), anchor="rs", spacing=5)
+                    fill=(0, 45, 62), anchor="rs", spacing=5)
 
                 rolePosition = rolePosition + largText + 32
                 count += 1
@@ -548,8 +547,7 @@ class Rank:
             largText, altText = self.class_font_role.getsize("Membro")
             bg_draw.rounded_rectangle(
                 [(rolePosition, 168), (rolePosition + largText + 22, 224)], 28, fill=(133, 133, 133), width=3)
-            bg_draw.text((rolePosition + largText + 12, 206), "Membro", font=self.class_font_role, fill=(
-                0, 45, 62), anchor="rs", spacing=5)
+            bg_draw.text((rolePosition + largText + 12, 206), "Membro", font=self.class_font_role, fill=(0, 45, 62), anchor="rs", spacing=5)
 
             rolePosition = rolePosition + 166
 

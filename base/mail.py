@@ -10,7 +10,8 @@ from base.struct import Config
 
 
 class Mail():
-    def __init__(self) -> None:
+
+    def __init__(self, email, mailhtml, mailtxt) -> None:
         
         with open('config.json', 'r') as f:
             self.cfg = Config(json.loads(f.read()))
@@ -20,17 +21,21 @@ class Mail():
         self.sender_email = self.cfg.bot_mail
         self.password = self.cfg.bot_mailpass
 
-    async def sendMail(self, email, mailhtml, mailtxt):
+        self.email = email
+        self.mailhtml = mailhtml
+        self.mailtxt = mailtxt
 
-        receiver_email = email
+    async def sendMail(self) -> None:
+
+        receiver_email = self.email
 
         # Create the plain-text and HTML version of your message
-        html = mailhtml
+        html = self.mailhtml
 
         message = MIMEMultipart("alternative")
         message["Subject"] = "E-mail de Resposta!"
         message["From"] = self.sender_email
-        message["To"] = ','.join(receiver_email)
+        message["To"] = receiver_email #','.join(receiver_email)
 
         # Add HTML/plain-text parts to MIMEMultipart message
         # The email client will try to render the last part first
@@ -69,7 +74,7 @@ class Mail():
                 self.sender_email, receiver_email, message.as_string()
             )
 
-    def getEmailMessage(self, status):
+    def getEmailMessage(status):
         if status == 'accept':
             email = """\
                 <!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
