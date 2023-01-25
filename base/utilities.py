@@ -79,7 +79,6 @@ class Database:
     #@retry(stop=stop_after_attempt(4), before_sleep=my_before_sleep)
     async def connect(self) -> None:
         try:
-            # self.conn = await asyncpg.connect(user=self.user, password=self.password, host=self.host)
             self.pool = await asyncpg.create_pool(
                 user=self.user,
                 password=self.password,
@@ -87,28 +86,43 @@ class Database:
                 host=self.host)
 
         except Exception as err:
-            if isinstance(err, asyncpg.exceptions.PostgresSyntaxError):
+            conn = await asyncpg.connect(user=self.user, password=self.password, host=self.host)
+
+            if isinstance(err, asyncpg.exceptions.InvalidCatalogNameError):
+
+                try:
+                    await conn.execute("""
+                            CREATE DATABASE %(db)s
+                        """ % {'db': self.cfg.dbName})
+                    await conn.execute("""
+                        CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"
+                    """)
+                except Exception as i:
+                    print(i)
+
+                
+                        
+            else:
                 # pass exception to function
                 pycopg_exception(err)
+
+            await conn.close()
+
+            self.pool = await asyncpg.create_pool(
+                user=self.user,
+                password=self.password,
+                database='%s' % (self.cfg.dbName),
+                host=self.host)
 
             # MUDA CONEXÃO PRA 'NONE' EM CASO DE ERRO
             # self.conn = None
 
-            await self.pool.close()
         else:
             # CRIA TABLES
             async with self.pool.acquire() as conn:
                 async with conn.transaction():
                     with open(os.path.join(__file__, '..\db', 'tables.sql'), 'r') as e:
                         await conn.execute(e.read())
-        finally:
-            async with self.pool.acquire() as conn:
-                async with conn.transaction():
-                    await conn.execute("""
-                        SELECT 'CREATE DATABASE %(db)s' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '%(db)s')
-                    """ % {'db': self.cfg.dbName})
-
-                    await conn.execute("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
 
 
     async def fetch(self, sql: str, *args: Any) -> list:
