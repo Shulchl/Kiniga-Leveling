@@ -16,4 +16,9 @@ src/*.jpg
 bot.py.lprof
 tests
 _temp
-!src/imgs/extra
+!src/imgs/extra/*.png
+!src/imgs/extra/bg/*.png
+!src/imgs/extra/inventario/*.png
+!src/imgs/extra/loja/*.png
+!src/imgs/extra/loja/banners/*.png
+!src/imgs/extra/perfil/*.png
