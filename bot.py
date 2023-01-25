@@ -13,6 +13,9 @@ from base.struct import Config
 
 TEST_GUILD = discord.Object(id=943170102759686174)
 
+with open('config.json', 'r', encoding='utf-8') as f:
+    cfg = Config(json.loads(f.read()))
+
 
 def log_handler() -> logging.Logger:
     logger = logging.getLogger()
@@ -41,13 +44,10 @@ class SpinovelBot(commands.Bot):
                                      name="Kiniga")
         super().__init__(
             intents=intents,
-            command_prefix=commands.when_mentioned_or('s.'),
+            command_prefix=commands.when_mentioned_or(cfg.prefix),
             description='Kiniga Brasil',
             activity=atividade
         )
-
-        with open('config.json', 'r', encoding='utf-8') as f:
-            self.cfg = Config(json.loads(f.read()))
 
         print('Excluindo arquivos temporários...')
         for filename in os.listdir('./_temp'):
@@ -56,23 +56,24 @@ class SpinovelBot(commands.Bot):
             print('%s removido.' % (filename, ))
 
     async def load_cogs(self) -> None:
-        for filename in os.listdir('./cmds'):
+        for filename in os.listdir('./base/cmds'):
             if filename.endswith('.py'):
                 try:
-                    await self.load_extension(f'cmds.{filename[ :-3 ]}')
+                    await self.load_extension(f'base.cmds.{filename[ :-3 ]}')
                     print(f'Cog "{filename}" carregada.')
                 except Exception as e:
                     print(
                         f'Ocorreu um erro enquanto a cog "{filename}" carregava.\n{e}')
                     log.error(e)
+                    raise e
 
     async def setup_hook(self) -> None:
         print(
             f'Logado como {self.user} (ID: {self.user.id}) usando discord.py {discord.__version__}')
         print('------')
         await self.load_cogs()
-        self.tree.copy_global_to(guild=TEST_GUILD)
-        await self.tree.sync(guild=TEST_GUILD)
+        # self.tree.copy_global_to(guild=TEST_GUILD)
+        # await self.tree.sync(guild=TEST_GUILD)
 
     async def close(self) -> None:
         log.warning("desligando o bot...")
@@ -84,7 +85,7 @@ async def main() -> None:
     bot = SpinovelBot()
     async with aiohttp.ClientSession() as session, bot:
         bot.session = session
-        await bot.start(bot.cfg.bot_token)
+        await bot.start(cfg.bot_token)
 
 
 async def warn() -> None:

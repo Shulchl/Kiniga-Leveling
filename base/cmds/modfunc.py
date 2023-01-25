@@ -11,9 +11,11 @@ from typing import Literal
 from typing import Optional
 
 from base.utilities import utilities
-from base.views import reviewButton, publishButton
+from base.views import reviewButton, publishButton, editItemModal
+
 from base.struct import Config
-from base.mail import sendMail, getEmailMessage
+from base.mail import Mail
+from base.webhooks import *
 
 from discord import File as dFile
 
@@ -31,15 +33,49 @@ class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
             callback=self.analise,
         )
         self.bot.tree.add_command(self.ctx_menu)
+        
+        with open('config.json', 'r') as f:
+            self.cfg = Config(json.loads(f.read()))
 
     async def cog_unload(self) -> None:
         self.bot.tree.remove_command(
             self.ctx_menu.name, type=self.ctx_menu.type)
 
     # UTILIDADES
-    @app_commands.command(name="ori")
     @app_commands.checks.has_permissions(administrator=True)
-    async def ori(self, interaction: discord.Interaction, simbol: Optional[Literal['-', '+']], amount: int, member: discord.Member = None):
+    @app_commands.command(name='editar')
+    @app_commands.describe(opt="Entre com 'item' para editar um item ou 'rank' para editar um rank.",
+                           id="ID do item à ser editado. Deixe vazio caso não seja um item a ser editado.")
+    async def editar(self, interaction: discord.Interaction,
+                     opt: Optional[Literal['item', 'rank']],
+                     id: int = None):
+        # await interaction.response.defer()
+        itemID = await self.db.fetchrow("""
+                SELECT item_type_id FROM itens WHERE id='%s'
+            """ % (id,)
+        )
+
+        if not itemID:
+            return await interaction.response.send_message("Não existe um item com esse ID.", ephemeral=True)
+
+        if opt == 'item':
+            modal = editItemModal()
+            res = await interaction.response.send_modal(modal(itemID))
+            res.wait()
+
+            if not res.respose:
+                return await interaction.edit_original_message("Nada foi modificado.", ephemeral=True)
+
+        elif opt == 'rank':
+            return
+
+        interaction.response.edit_message(
+            "Os valores de %s foram editado.\n"
+            "Talvez seja bom atualizar os itens, bem como a loja. (s.updateitens *, s.updateitens *)", ephemeral=True)
+
+    @app_commands.command(name="darspark")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def darspark(self, interaction: discord.Interaction, simbol: Optional[Literal['-', '+']], amount: int, member: discord.Member = None):
         member = member or interaction.user
         if member:
             if simbol == '+':
@@ -193,7 +229,7 @@ class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
         authordiscord = re.findall("([\w\.-]+#[\w\.-]+)", content)
         historyID = re.findall("( #[\w\.-]+)", content)
 
-        return authordiscord[0], authoremail[0], historyID[0], filename
+        return authordiscord[0], authoremail[0], historyID[0], filename, content
 
     async def checkuseringuild(self, user: str, guild):
         if isinstance(user, str):
@@ -223,7 +259,7 @@ class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
             # to author
             message = discord.Embed(
                 title=f"{author.name}, meus parabéns por se tornar um autor da Kiniga!",
-                description="Sua história acabba de ser aceita.\n"
+                description="Sua história acaba de ser aceita.\n"
                 "Fique ligado(a) no canal <#678060799213830201> para saber quando sua história será publicada! ",
                 color=0x00ff33).set_author(
                     name="Kiniga Brasil",
@@ -251,8 +287,9 @@ class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
     async def analise(self, interaction: discord.Interaction, message: discord.Message):
         accept_channel = self.bot.get_channel(1035252705406500935)  # mudar
         refused_channel = self.bot.get_channel(1035252941927489586)  # mudar
+        trello_log_channel = self.bot.get_channel(1067865330657009685)
 
-        await interaction.response.defer(ephemeral=False, thinking=True)
+        await interaction.response.defer(ephemeral=True, thinking=True)
 
         view = reviewButton()
         await interaction.followup.send(
@@ -261,7 +298,7 @@ class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
 
         await view.wait()  # Espera resposta
         # PEGA INFO DA FILE
-        authorDiscord, authorEmail, historyID, filename = await self.getinfo(message)
+        authorDiscord, authorEmail, historyID, filename, content = await self.getinfo(message)
 
         if view.status == 'accept':
 
@@ -269,7 +306,7 @@ class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
 
             useringuild = await self.checkuseringuild(str(authorDiscord), interaction.guild)
 
-            emailhtml, emailtxt = getEmailMessage(status='accept')
+            emailhtml, emailtxt = Mail.getEmailMessage(status='accept')
 
             if (isinstance(useringuild, str)):
                 return await interaction.response.edit_message(
@@ -284,22 +321,33 @@ class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
                 else:
                     await interaction.edit_original_response(
                         content="A mensagem foi enviada ao(à) autor(a) com sucesso. (ID %s)" % (str(historyID)), view=None)
-                    
+
             await accept_channel.send("História %s pronta para ser publicada. \n`"
                                       "Use o botão \"Sim\" para finalizar o processo de publicação, \"Não\" para excluir a história da fila.`" % (
                                           str(historyID), ),
                                       file=dFile(rf'./_temp/{filename}'), view=publishButton(user_discord=authorDiscord, hid=str(historyID), message=message)
                                       )
+
             await message.add_reaction("✔")
+            
+            trelloList = str(self.cfg.trelloList)
+            trelloKey = str(self.cfg.trelloKey)
+            trelloToken = str(self.cfg.trelloToken)
+
+            tResponse = addCard.get_response(
+                novelId=str(historyID), desc=str(content), trelloList=trelloList, trelloKey=trelloKey, trelloToken=trelloToken)
+
+            await trello_log_channel.send(f'`{tResponse}`')
+
             # (await self.getinfo(message))[0])
         elif view.status == 'refuse':
-            emailhtml, emailtxt = getEmailMessage(status='refuse')
+            emailhtml, emailtxt = Mail.getEmailMessage('refuse')
             try:
                 for name in os.listdir('./_temp'):
                     if name == filename:
                         os.remove('./_temp/%s' % (name, ))
                 else:
-
+                    await interaction.message.delete()
                     await interaction.channel.send("`( 〃．．)` Não foi possível remover %s. Marca o Jonathan aí." % (str(historyID)), delete_after=10)
             except Exception as e:
                 await interaction.channel.send("`( 〃．．)` Deu um erro aqui... \n`%s` " % (e), delete_after=10)
@@ -307,7 +355,8 @@ class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
             await refused_channel.send("ID: %s (%s) **Recusado por %s**" % (str(historyID), authorEmail, interaction.user))
 
             await message.add_reaction("❌")
-        await sendMail(email=authorEmail, mailhtml=emailhtml, mailtxt=emailtxt)
+
+        await Mail(authorEmail, emailhtml, emailtxt).sendMail()
         await message.add_reaction("📩")
 
 

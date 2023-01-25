@@ -391,3 +391,107 @@ class SimpleModalWaitFor(Modal):
         self.value = values
         self.interaction = interaction
         self.stop()
+
+class editItemModal(Modal):
+    def __init__(
+        self,
+        title: Optional[str] = None,
+        *,
+        check: Optional[Callable[[Self, Interaction],
+                                 Union[Coroutine[Any, Any, bool], bool]]] = None,
+        timeout: int = 300,
+        input_label: Optional[str] = None,
+        input_max_length: int = 100,
+        input_min_length: int = 5,
+        input_style: TextStyle = TextStyle.short,
+        input_placeholder: Optional[str] = None,
+        input_default: Optional[str] = None,
+    ):
+        super().__init__(title=title, timeout=timeout, custom_id="edit_item_modal")
+        self._check: Optional[Callable[[Self, Interaction],
+                                       Union[Coroutine[Any, Any, bool], bool]]] = check
+        self.value: Optional[str] = None
+        self.interaction: Optional[Interaction] = None
+
+        # type, name, valor: int, nivel: int, img_loja, img_perfil=None, img_round_title=None,canbuy: bool = True
+
+        self.name = TextInput(
+            label="Qual o nome do item?",
+            placeholder="",
+            max_length=30,
+            min_length=3,
+            style=input_style,
+            default=input_default,
+            custom_id=self.custom_id + "_input_field",
+        )
+        self.type = TextInput(
+            label="Qual o tipo do item?",
+            placeholder="(Moldura/Titulo/Consumivel)",
+            max_length=input_max_length,
+            min_length=input_min_length,
+            style=input_style,
+            default=input_default,
+            custom_id=self.custom_id + "0" + "_input_field",
+        )
+        self.value = TextInput(
+            label="Qual o valor do item?",
+            placeholder="Números inteiros apenas.",
+            max_length=45,
+            min_length=3,
+            style=input_style,
+            default=input_default,
+            custom_id=self.custom_id + "1" + "_input_field",
+        )
+        self.img_loja = TextInput(
+            label="Link da imagem que aparecerá na loja?",
+            placeholder="(Dimensão máxima: 170x140)",
+            min_length=1,
+            style=input_style,
+            default=input_default,
+            custom_id=self.custom_id + "3" + "_input_field",
+        )
+        self.img_perfil = TextInput(
+            label="Link da imagem que aparecerá no perfil?",
+            placeholder="Exemplo: [url perfil, url arredondado] (Se não for Moldura, não insira nada aqui)",
+            required=False,
+            style=input_style,
+            default=input_default,
+            custom_id=self.custom_id + "4" + "_input_field",
+        )
+        # self.img_round_title = TextInput(
+        #    label="Link da imagem arredondada do nome do rank?",
+        #    placeholder="(Se o Tipo for Titulo, não insira nada aqui)",
+        #    required = False,
+        #    style=input_style,
+        #    default=input_default,
+        #    custom_id=self.custom_id + "5" + "_input_field",
+        # )
+
+        self.add_item(self.name)
+        self.add_item(self.type)
+        self.add_item(self.value)
+        self.add_item(self.img_loja)
+        self.add_item(self.img_perfil)
+        # self.add_item(self.img_round_title)
+
+    async def interaction_check(self, interaction: Interaction) -> bool:
+        if self._check:
+            allow = await maybe_coroutine(self._check, self, interaction)
+            return allow
+
+        return True
+
+    async def on_submit(self, interaction: Interaction) -> None:
+        itens = interaction.data
+        values = []
+
+        for key, value in itens.items():
+            if key == 'components':
+                for i in value:
+                    for value in i['components']:
+                        values.append(value['value'])
+        print(values)
+
+        self.value = values
+        self.interaction = interaction
+        self.stop()

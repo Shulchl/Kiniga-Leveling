@@ -58,9 +58,12 @@ class User(commands.Cog):
 
         staff = await get_roles(uMember, interaction.guild)
 
-        result = await self.db.fetch("SELECT rank, info, spark, ori, birth, iventory_id FROM users WHERE id='%s'" % (uMember.id, ))
+        result = await self.db.fetch("SELECT rank, info, spark, ori, birth, iventory_id FROM users WHERE id=\'%s\'" % (uMember.id, ))
 
-        if result:
+        if not result:
+            return await interaction.response.send_message("`%s, você ainda não tem nenhum ponto de experiência.`" % (uMember.mention, ), ephemeral=True)
+
+        try:
             userRank = result[0][0]
             userInfo = result[0][1]
             userSpark = result[0][2]
@@ -69,14 +72,16 @@ class User(commands.Cog):
             userIventoryId = result[0][5]
 
             try:
-                profile_bytes = await get_userBanner_func(uMember)
-            except:
                 profile_bytes = await get_userAvatar_func(uMember)
+            except:
+                with open("../src/imgs/extra/Icon-Kiniga.png", "rb") as image:
+                    profile_bytes = image.read()
 
-            if not await self.db.fetch('SELECT lv FROM ranks LIMIT 1'):
+            checkRanks = await self.db.execute('SELECT lvmin FROM ranks LIMIT 1')
+            if not checkRanks:
                 return await interaction.response.send_message("`Não há nenhuma classe no momento.`")
 
-            ranks = await self.db.fetch("SELECT name, r, g, b FROM ranks WHERE lv <= %s ORDER BY lv DESC" % (userRank + 1 if userRank == 0 else userRank, ))
+            ranks = await self.db.fetch("SELECT name, r, g, b FROM ranks WHERE lvmin <= %s ORDER BY lvmin DESC" % (userRank + 1 if userRank == 0 else userRank, ))
 
             if ranks:
                 rankName = ranks[0][0]
@@ -101,7 +106,8 @@ class User(commands.Cog):
                     moldImage = mold[0][0]
 
             banner_id = iventory[0][2]
-            # Pega titulo equipado
+
+            # Pega banner equipado
             bannerImg = None
             if banner_id is not None:
                 banner = await self.db.fetch("SELECT img_perfil FROM banners WHERE id=(\'%s\')" % (banner_id, ))
@@ -110,21 +116,22 @@ class User(commands.Cog):
             else:
                 bannerImg = "src/imgs/extra/loja/banners/Fy-no-Planeta-Magnético.png"
 
+            # Pega badges equipadas
             badge_ids = iventory[0][3]
-            badge_rows = []
             badge_images = []
-            l = ast.literal_eval(badge_ids)
-            for key, value in l.items():
-                badge_rows.append(value)
-            if len(badge_rows) > 0:
-                rows = await self.db.fetch("""
-					SELECT img FROM itens WHERE item_type_id IN %s
-				""" % (tuple(str(i) for i in badge_rows),)
-                )
-                for row in rows:
-                    badge_images.append(row[0])
-            # return print(badge_rows[0][0])
-                print(badge_rows)
+            if badge_ids is not None:
+                badge_rows = []
+                l = ast.literal_eval(badge_ids)
+                for key, value in l.items():
+                    badge_rows.append(value)
+                if len(badge_rows) > 0:
+                    rows = await self.db.fetch("""
+                        SELECT img FROM itens WHERE item_type_id IN %s
+                    """ % (tuple(str(i) for i in badge_rows),)
+                    )
+                    for row in rows:
+                        badge_images.append(row[0])
+                # return print(badge_rows[0][0])
 
             buffer = utilities.rankcard.draw_new(
                 str(uMember), badge_images, bannerImg,
@@ -133,21 +140,23 @@ class User(commands.Cog):
                 rankB, BytesIO(profile_bytes))
 
             await interaction.response.send_message(file=dFile(fp=buffer, filename='rank_card.png'))
-        else:
-            await interaction.response.send_message("`%s, você ainda não tem nenhum ponto de experiência.`" % (uMember.mention, ), ephemeral=True)
+        except Exception as e:
+            raise e
 
     @perfil.error
-    async def perfil_error(self, interaction, error):
-        if isinstance(error, commands.CommandOnCooldown):
-            await interaction.response.send_message(
-                "%s você poderá usar este comando de novo."
-                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
+    async def perfil_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.CommandOnCooldown):
+            res = await interaction.channel.send(
+                "%s você poderá usar este comando de novo." % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
         else:
-            await interaction.response.send_message(error, delete_after=5)
+            await interaction.channel.send(error)
+            raise error
+        await res.delete(error.retry_after)
     # @longest_cooldown
 
     @app_commands.command(name='nivel', description='Monstrará a barra de progresso, bem como a medalha de seu nível.')
     @app_commands.describe(member='Marque o usuário para mostrar seu nível. (opcional)')
+    @activity_cooldown
     async def nivel(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
 
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -173,11 +182,11 @@ class User(commands.Cog):
         except Exception as e:
             return await interaction.followup.send("Não foi possível pegar o banner no usuário! %s" % (e, ))
 
-        total = await self.db.fetch('SELECT COUNT(lv) FROM ranks')
+        total = await self.db.fetch('SELECT COUNT(lvmin) FROM ranks')
         d = re.sub('\\D', '', str(total))
         if int(d) > 0:
             try:
-                rankss = await self.db.fetch("SELECT name, badges, imgxp FROM ranks WHERE lv <= %s ORDER BY lv DESC" % (result[0][0], ))
+                rankss = await self.db.fetch("SELECT name, badges, imgxp FROM ranks WHERE lvmin <= %s ORDER BY lvmin DESC" % (result[0][0], ))
                 if rankss:
                     moldName, moldImg, xpimg = rankss[0][0], rankss[0][1], rankss[0][2]
                 else:
@@ -197,13 +206,13 @@ class User(commands.Cog):
         await interaction.followup.send(file=dFile(fp=buffer, filename='profile_card.png'), ephemeral=True)
 
     @nivel.error
-    async def nivel_error(self, interaction: discord.Interaction, error):
-        if isinstance(error, commands.CommandOnCooldown):
-            await interaction.response.send_message(
-                "%s você poderá usar este comando de novo."
-                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
+    async def nivel_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.CommandOnCooldown):
+            res = await interaction.channel.send(
+                "%s você poderá usar este comando de novo." % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
         else:
-            await interaction.response.send_message(error, delete_after=5)
+            await interaction.channel.send(error)
+        await res.delete(error.retry_after)
 
     @app_commands.command()
     async def getavatar(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
@@ -253,10 +262,11 @@ class User(commands.Cog):
     @pescar.error
     async def pescar_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CommandOnCooldown):
-            await interaction.response.send_message(
+            res = await interaction.response.send_message(
                 "%s você poderá usar este comando de novo."
                 % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")),
                 ephemeral=True)            # [ :-7 ]
+        await res.delete(error.retry_after)
 
     @app_commands.command(name='topspark')
     @activity_cooldown
@@ -308,18 +318,7 @@ class User(commands.Cog):
     @app_commands.command(name='classes')
     @activity_cooldown
     async def classes(self, interaction: discord.Interaction):
-        await self.db.fetch(
-            """
-			CREATE TABLE IF NOT EXISTS ranks (
-				lv INT NOT NULL, 
-				name TEXT NOT NULL, 
-				localE TEXT NOT NULL,
-				localRR TEXT NOT NULL, 
-				sigla TEXT, 
-				path TEXT
-			)
-		""")
-        total = await self.db.fetch("SELECT COUNT(lv) FROM ranks")
+        total = await self.db.fetch("SELECT COUNT(lvmin) FROM ranks")
         for t in total:
             d = re.sub(r"\D", "", str(t))
             if int(d) > 0:
@@ -332,7 +331,7 @@ class User(commands.Cog):
                 # await interaction.send(int(d))
                 while int(count) < int(d) - 1:
                     try:
-                        rows = await self.db.fetch('SELECT * FROM ranks ORDER BY lv ASC')
+                        rows = await self.db.fetch('SELECT * FROM ranks ORDER BY lvmin ASC')
                         for row in rows:
                             # await interaction.send(row)
                             rank_lv = row[0]
@@ -393,10 +392,11 @@ class User(commands.Cog):
     @niver.error
     async def niver_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CommandOnCooldown):
-            await interaction.response.send_message(
+            res = await interaction.response.send_message(
                 f"Você precisa esperar {str(datetime.timedelta(seconds=error.retry_after))[ :-7 ]} horas para poder "
                 f"usar este comando de novo.",
                 ephemeral=True)
+        await res.delete(error.retry_after)
 
     @app_commands.command(name='delniver')
     @longest_cooldown
@@ -407,92 +407,92 @@ class User(commands.Cog):
     # @activity_cooldown
     @app_commands.command(name='inv')
     async def inv(self, interaction: discord.Interaction) -> None:
-        rows = await self.db.fetch("""
-			SELECT * FROM jsonb_each_text(
-				(
-					SELECT itens::jsonb FROM iventory 
-					WHERE iventory_id=(
-						SELECT iventory_id FROM users WHERE id = ('%s')
-					)
-				)
-			);
-		""" % (interaction.user.id,)
-        )
+        try:
+            rows = await self.db.fetch("""
+                SELECT * FROM jsonb_each_text(
+                    (
+                        SELECT itens::jsonb FROM iventory 
+                        WHERE iventory_id=(
+                            SELECT iventory_id FROM users WHERE id = ('%s')
+                        )
+                    )
+                );
+            """ % (interaction.user.id,)
+            )
+            item_ids = []
+            # return print((str(key[0]), int(value[1])) for key, value in [ast.literal_eval(row).items() for row in rows])
+            for row in rows:
+                items_key = row[0]
+                items_value = ast.literal_eval(row[1])
+                for key, value in items_value.items():
+                    if len(value) > 0:
+                        for key, value in value:
+                            item_ids.append([str(key), int(value[0])])
+            if len(item_ids) < 1:
+                return await interaction.response.send_message(
+                    "`Você não tem nenhum item. Compre utilizando sparks ou oris na loja! [/loja]`")
 
-        item_ids = []
-        for row in rows:
-            items_key = row[0]
-            items_value = ast.literal_eval(row[1])
-            for key, value in items_value.items():
-                if value != {}:
-                    if items_key == "Badge" or "Moldura":
-                        for key, value in value.items():
-                            item_ids.append([str(key), int(value)])
-                    else:
-                        item_ids.append([str(key), int(value)])
+            rows = await self.db.fetch("""
+                SELECT id, name, img, img_profile, category, type_ FROM itens WHERE item_type_id IN %s
+            """ % (tuple(str(i[0]) for i in item_ids),)
+            )
+            items = []
+            c = 0
+            for row in rows:
+                items.append({c: {
+                    "id": str(row[0]),
+                    "name": str(row[1]),
+                    "img": str(row[2] if str(row[5]) == "Badge" else row[3]),
+                    "category": str(row[4]).replace(" ", ""),
+                    "type": str(row[5])
+                }})
+                c += 1
+                # items.append(row[0])
+            user_info = await self.db.fetch("""
+                SELECT banner as eqp_banner, spark as Spark, ori as Ori
+                    FROM iventory, users
+                WHERE iventory.iventory_id=(
+                    SELECT iventory_id FROM users WHERE id = ('%s')
+                ) and users.iventory_id=(
+                    SELECT iventory_id FROM users WHERE id = ('%s')
+                );
+            """ % (interaction.user.id, interaction.user.id,)
+            )
+            if user_info:
+                if user_info[0][0] == None:
+                    banner_img = 'src/imgs/extra/loja/banners/Fy-no-Planeta-Magnético.png'
                 else:
-                    pass
-                    #print("Grupo %s de %ss não tem nada" % (key, items_key, ))
-        if len(item_ids) < 1:
-            return await interaction.response.send_message(
-                "`Você não tem nenhum item. Compre utilizando sparks ou oris na loja! [/loja]`")
-        rows = await self.db.fetch("""
-			SELECT id, name, img, img_profile, category, type_ FROM itens WHERE item_type_id IN %s
-		""" % (tuple(str(i[0]) for i in item_ids),)
-        )
-        items = []
-        c = 0
-        for row in rows:
-            items.append({c: {
-                "id": str(row[0]),
-                "name": str(row[1]),
-                "img": str(row[2] if str(row[5]) == "Badge" else row[3]),
-                "category": str(row[4]).replace(" ", ""),
-                "type": str(row[5])
-            }})
-            c += 1
-            # items.append(row[0])
-        user_info = await self.db.fetch("""
-			SELECT banner as eqp_banner, spark as Spark, ori as Ori
-				FROM iventory, users
-			WHERE iventory.iventory_id=(
-				SELECT iventory_id FROM users WHERE id = ('%s')
-			) and users.iventory_id=(
-				SELECT iventory_id FROM users WHERE id = ('%s')
-			);
-		""" % (interaction.user.id, interaction.user.id,)
-        )
-        if user_info:
-            if user_info[0][0] == None:
-                banner_img = 'src/imgs/extra/loja/banners/Fy-no-Planeta-Magnético.png'
-            else:
-                banner_img = await self.db.fetch("""
-					SELECT img_loja FROM banners WHERE id=(\'%s\')
-				""" % (user_info[0][0], )
-                )
-                banner_img = banner_img[0][0]
+                    banner_img = await self.db.fetch("""
+                        SELECT img_loja FROM banners WHERE id=(\'%s\')
+                    """ % (user_info[0][0], )
+                    )
+                    banner_img = banner_img[0][0]
 
-            banner, spark, ori = banner_img, user_info[0][1], user_info[0][2]
+                banner, spark, ori = banner_img, user_info[0][1], user_info[0][2]
 
-        async with interaction.channel.typing():
-            pages = utilities.rankcard.drawiventory(
-                banner, spark, ori, items, c)
-            pages = [os.path.join('./_temp/', i) for i in pages]
-            #view = None
-            # if len(pages) > 1:
-            view = Paginacao(pages, 60, interaction.user)
-        await interaction.response.send_message(file=dFile(rf'{pages[0]}'),
-                                                view=view, ephemeral=True)
-        out = interaction.edit_original_response
-        view.response = out
+            async with interaction.channel.typing():
+                pages = utilities.rankcard.drawiventory(
+                    banner, spark, ori, items, c)
+                pages = [os.path.join('./_temp/', i) for i in pages]
+                #view = None
+                # if len(pages) > 1:
+                view = Paginacao(pages, 60, interaction.user)
+            await interaction.response.send_message(file=dFile(rf'{pages[0]}'),
+                                                    view=view, ephemeral=True)
+            out = interaction.edit_original_response
+            view.response = out
+        except Exception as e:
+            await interaction.response.send_message("```%s.```" % (e), ephemeral=True)
+            raise e
 
     @inv.error
-    async def inv_error(self, interaction: discord.Interaction, error):
+    async def inv_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CommandOnCooldown):
-            await interaction.response.send_message(
-                'Você precisa esperar {:.2f} segundos para poder usar este comando de novo.'.format(
-                    error.retry_after),
+            res = await interaction.response.send_message(
+                f"Você precisa esperar {str(datetime.timedelta(seconds=error.retry_after))[ :-7 ]} horas para poder "
+                f"usar este comando de novo.",
                 ephemeral=True)
+        await res.delete(error.retry_after)
 
     # description='Use diariamente para receber recompensas incríveis'
     @app_commands.command(name='daily')
@@ -501,14 +501,14 @@ class User(commands.Cog):
         chest_itens = {'chest': 80, 'ori': 10, 'xp': 10}
         choosed = random.choices(*zip(*chest_itens.items()), k=1)
         oris = randint(self.cfg.coinsmin, self.cfg.coinsmax)
-        xp = randint(self.bot.cfg.min_message_xp, self.bot.cfg.max_message_xp)
+        xp = randint(self.cfg.min_message_xp, self.cfg.max_message_xp)
         print(choosed)
         if choosed[0] == 'ori':
             oris = randint(self.cfg.coinsmin, self.cfg.coinsmax)
             return await interaction.response.send_message(f"Você ganhou {oris} oris!", ephemeral=True)
         elif choosed[0] == 'xp':
-            xp = randint(self.bot.cfg.min_message_xp,
-                         self.bot.cfg.max_message_xp)
+            xp = randint(self.cfg.min_message_xp,
+                         self.cfg.max_message_xp)
             return await interaction.response.send_message(f"Você ganhou {xp} de experiência!", ephemeral=True)
         elif choosed[0] == 'chest':
             chest_prize = [' oris', ' de experiência', ' uma chave']
@@ -560,15 +560,17 @@ class User(commands.Cog):
                                            'para receber recompensas incríveis!', ephemeral=True)
 
     @daily.error
-    async def daily_error(self, interaction, error):
-        if isinstance(error, commands.CommandOnCooldown):
-            await interaction.send(
-                f'Você precisa esperar {str(datetime.timedelta(seconds=error.retry_after))[ :-7 ]} horas para poder '
-                f'usar este comando de novo.')
+    async def daily_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.CommandOnCooldown):
+            res = await interaction.response.send_message(
+                f"Você precisa esperar {str(datetime.timedelta(seconds=error.retry_after))[ :-7 ]} horas para poder "
+                f"usar este comando de novo.",
+                ephemeral=True)
+        await res.delete(error.retry_after)
 
-    @app_commands.command(name='oris')
-    async def oris(self, interaction: discord.Interaction):
-        key_value = await self.db.fetch(f"SELECT coin FROM users WHERE id='{interaction.user.id}'")
+    @app_commands.command(name='sparks')
+    async def sparks(self, interaction: discord.Interaction):
+        key_value = await self.db.fetch(f"SELECT spark FROM users WHERE id='{interaction.user.id}'")
         await interaction.response.send_message(f'Você tem {key_value[ 0 ][ 0 ]} dinheiros.', ephemeral=True)
 
 

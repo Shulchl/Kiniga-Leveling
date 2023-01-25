@@ -14,6 +14,11 @@ class Config:
         self.bot_mailpass = cfg['bot_mailpass']
         self.bot_mailhost = cfg['bot_mailhost']
         
+        # COISAS DO TRELLO
+        self.trelloList = cfg['tidList']
+        self.trelloKey = cfg['tkey']
+        self.trelloToken = cfg['ttoken']
+        
         # COISAS DO DISCORD
         self.bot_token = cfg['bot_token']
         

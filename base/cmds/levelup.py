@@ -36,20 +36,17 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
         if not bucket.update_rate_limit():
             aId = message.author.id
 
-            user_infos = await self.db.fetch(f"SELECT rank, xp, xptotal, id, iventory_id FROM users WHERE id=('{aId}')")
-
+            user_infos = await self.db.fetch("SELECT rank, xp, xptotal, id, iventory_id FROM users WHERE id=(\'%s\')" % (aId, ))
             if not user_infos:
-                await self.db.execute(f"""
+                user_infos = await self.db.fetch("""
                     INSERT INTO users (id, rank, xp, xptotal, user_name) 
-                    VALUES (\'{aId}\', \'0\', \'0\', \'0\', \'{message.author.name}\')
-                """)
+                    VALUES (\'%s\', 0, 0, 0, \'%s\') RETURNING rank, xp, xptotal, id, iventory_id;
+                """ % (aId, message.author.name, ) )
+                
                 await self.db.execute("""
-                    UPDATE iventory set itens = \'%s\' WHERE iventory_id = (
-                        SELECT iventory_id FROM users WHERE id = '%s'
-                    )
-                    """ % (
-                        '{"Carro": {"ids": []}, "Badge": {"rank": [], "equipe": [], "moldura": [], "apoiador": []}, "Banner": {"ids": []}, "Titulo": {"ids": []}, "Moldura": {"ids": []}, "Utilizavel": {"ids": []}}',
-                        aId, 
+                        INSERT INTO iventory ( iventory_id, itens ) VALUES ( \'%s\',  '%s' );
+                    """ % ( user_infos[0][4],
+                        '{"Carro": {"ids": []}, "Badge": {"rank": [], "equipe": [], "moldura": [], "apoiador": []}, "Banner": {"ids": []}, "Moldura": {"ids": []}, "Utilizavel": {"ids": []}}', 
                     )
                 )
                 current_xp = 0
@@ -61,8 +58,8 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
             self.lvUpChannel = self.bot.get_channel(1009074998889164880)
             spark = randint(self.cfg.coinsmin, self.cfg.coinsmax)
             # result = await self.db.fetch(f"SELECT rank, xp, xptotal FROM users WHERE id=('{aId}')")
-            expectedXP = randint(self.bot.cfg.min_message_xp,
-                                 self.bot.cfg.max_message_xp)
+            expectedXP = randint(self.cfg.min_message_xp,
+                                 self.cfg.max_message_xp)
             current_xp = user_infos[0][1] + expectedXP
 
             if current_xp >= utilities.rankcard.neededxp(user_infos[0][0]):
@@ -81,7 +78,7 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
                         % (message.author.mention, rank, spark, expectedXP, ), delete_after=10)
 
                     rankNames = await self.db.fetch("""
-                        SELECT name FROM ranks WHERE lvmin <= %s ORDER BY lv DESC
+                        SELECT name FROM ranks WHERE lvmin <= %s ORDER BY lvmin DESC
                     """ % (rank, ))
 
                     nextRank = discord.utils.find(

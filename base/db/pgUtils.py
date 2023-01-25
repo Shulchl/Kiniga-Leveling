@@ -8,6 +8,7 @@
 
 import sys
 import psycopg2
+import logging
 
 __all__ = [ 'Database' ]
 
@@ -28,8 +29,8 @@ def print_psycopg2_exception(err):
     try:
         print ("\nextensions.Diagnostics:", err.diag)
     except:
-        print("pgerror:", err.pgerror)
+        raise ("pgerror:", err.pgerror)
     # print the pgcode and pgerror exceptions
     finally:
-        print("pgcode:", err.pgcode, "\n")
+        raise ("pgcode:", err.pgcode, "\n")
     

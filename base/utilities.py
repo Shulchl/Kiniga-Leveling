@@ -32,6 +32,8 @@ logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
+# * Créditos: IVI
+# * https://stackoverflow.com/questions/36588126/uuid-is-not-json-serializable#:~:text=import%20json%0Afrom%20uuid%20import%20UUID%0A%0A%0Aclass%20UUIDEncoder(json.JSONEncoder)%3A%0A%20%20%20%20def%20default(self%2C%20obj)%3A%0A%20%20%20%20%20%20%20%20if%20isinstance(obj%2C%20UUID)%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20%23%20if%20the%20obj%20is%20uuid%2C%20we%20simply%20return%20the%20value%20of%20uuid%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20obj.hex%0A%20%20%20%20%20%20%20%20return%20json.JSONEncoder.default(self%2C%20obj)
 class UUIDEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, UUID):

@@ -28,7 +28,10 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         self.db = utilities.database(self.bot.loop)
         self.chosen = []
 
-        if self.bot.cfg.bdayloop:
+        with open('config.json', 'r', encoding='utf-8') as f:
+            self.cfg = Config(json.loads(f.read()))
+
+        if self.cfg.bdayloop:
             self.bdayloop.start()
 
     def cog_unload(self):
@@ -175,35 +178,36 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
-        channel = self.bot.get_channel(payload.channel_id)
-        if payload.message_id == giveway_idFunction.ids and payload.user_id != self.bot.user.id:
-            message = await channel.fetch_message(payload.message_id)
-            user = (self.bot.get_user(payload.user_id))
-            if not user:
-                user = await self.bot.fetch_user(payload.user_id)
+        if giveway_idFunction.ids:
+            channel = self.bot.get_channel(payload.channel_id)
+            if payload.message_id == giveway_idFunction.ids and payload.user_id != self.bot.user.id:
+                message = await channel.fetch_message(payload.message_id)
+                user = (self.bot.get_user(payload.user_id))
+                if not user:
+                    user = await self.bot.fetch_user(payload.user_id)
 
-            # if payload.emoji != '🎉':
-            #    await message.remove_reaction(payload.emoji, user)
+                # if payload.emoji != '🎉':
+                #    await message.remove_reaction(payload.emoji, user)
 
-            try:
-                inv = await self.db.fetch(f"SELECT inv FROM users WHERE id=('{user.id}')")
-                itens = inv[0][0].split(',')
-                j = [[t[0][0], t[0][1]] for t in
-                     [(await self.db.fetch(f"SELECT id, name FROM itens WHERE id=('{i}')")) for i in itens] if
-                     str(t[0][1]) == 'Ticket']
-                # await channel.send(str(j[0][0]) if j else "Nada")
-                for l in j:
-                    await channel.send(
-                        "Descontarei um ticket de seu inventário. Você poderá comprar outro na loja a qualquer momento.")
-                    if str(j[0][1]).title() == "Ticket".title():
-                        itens.remove(str(j[0][0]))
-                        await self.db.fetch(f"UPDATE users SET inv = ('{','.join(itens)}')")
-                else:
-                    await message.remove_reaction(payload.emoji, user)
-                    await channel.send(f"{user.mention}, você precisa comprar um ticket primeiro.")
+                try:
+                    inv = await self.db.fetch(f"SELECT inv FROM users WHERE id=('{user.id}')")
+                    itens = inv[0][0].split(',')
+                    j = [[t[0][0], t[0][1]] for t in
+                         [(await self.db.fetch(f"SELECT id, name FROM itens WHERE id=('{i}')")) for i in itens] if
+                         str(t[0][1]) == 'Ticket']
+                    # await channel.send(str(j[0][0]) if j else "Nada")
+                    for l in j:
+                        await channel.send(
+                            "Descontarei um ticket de seu inventário. Você poderá comprar outro na loja a qualquer momento.")
+                        if str(j[0][1]).title() == "Ticket".title():
+                            itens.remove(str(j[0][0]))
+                            await self.db.fetch(f"UPDATE users SET inv = ('{','.join(itens)}')")
+                    else:
+                        await message.remove_reaction(payload.emoji, user)
+                        await channel.send(f"{user.mention}, você precisa comprar um ticket primeiro.")
 
-            except Exception as e:
-                raise e
+                except Exception as e:
+                    raise e
 
     @commands.has_any_role(
         667839130570588190,
@@ -238,7 +242,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     # LOOP DE ANIVERSÁRIO // BDAY LOOP
     @tasks.loop(seconds=10, count=1)
     async def bdayloop(self):
-        channel = self.bot.get_channel(int(self.bot.cfg.chat_cmds))
+        channel = self.bot.get_channel(int(self.cfg.chat_cmds))
         await channel.send("Verificando aniversariantes...", delete_after=5)
         await asyncsleep(5)
         birthday = await self.db.fetch("SELECT id FROM users WHERE birth=TO_CHAR(NOW() :: DATE, 'dd/mm')")
@@ -300,9 +304,9 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     @commands.command()
     @commands.cooldown(1, 30, commands.BucketType.member)
     async def load(self, ctx, extension):
-        await self.bot.load_extension(f'cmds.{extension}')
+        await self.bot.load_extension(f'base.cmds.{extension}')
         await ctx.message.delete()
-        await ctx.reply("Carreguei os comandos", delete_after=5)
+        await ctx.send("Carreguei os comandos", delete_after=5)
 
     @load.error
     async def load_error(self, ctx, error):
@@ -317,10 +321,10 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     @commands.command()
     @commands.cooldown(1, 30, commands.BucketType.member)
     async def reload(self, ctx, extension):
-        await self.bot.unload_extension(f'cmds.{extension}')
-        await self.bot.load_extension(f'cmds.{extension}')
+        await self.bot.unload_extension(f'base.cmds.{extension}')
+        await self.bot.load_extension(f'base.cmds.{extension}')
         await ctx.message.delete()
-        await ctx.reply("Recarreguei os comandos", delete_after=5)
+        await ctx.send("Recarreguei os comandos", delete_after=5)
 
     @reload.error
     async def reload_error(self, ctx, error):
@@ -335,9 +339,9 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     @commands.command()
     @commands.cooldown(1, 30, commands.BucketType.member)
     async def unload(self, ctx, extension):
-        await self.bot.unload_extension(f'cmds.{extension}')
+        await self.bot.unload_extension(f'base.cmds.{extension}')
         await ctx.message.delete()
-        await ctx.reply("Descarreguei os comandos", delete_after=5)
+        await ctx.send("Descarreguei os comandos", delete_after=5)
 
     @unload.error
     async def unload_error(self, ctx, error):
@@ -357,17 +361,18 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         try:
             await self.bot.close()
         except Exception as e:
-            raise await self.bot.clear(e)
+            await ctx.send("Deu merda aqui em. Melhor ver isso logo...", delete_after=5)
+            raise e
         else:
-            await ctx.reply("Deu merda aqui em. Melhor ver isso logo...")
-            
+            await self.bot.clear(e)
+
     @commands.has_permissions(administrator=True)
     @commands.command(name="tsql")
     async def tsql(self, ctx, *, sql: str) -> None:
         await ctx.message.delete()
         output = await self.db.fetch(sql)
         await ctx.send(f'```{output}```', delete_after=20)
-    
+
     @tsql.error
     async def tsql_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
@@ -383,7 +388,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         await ctx.message.delete()
         output = await self.db.fetchList(sql)
         await ctx.send(f'```{output}```', delete_after=20)
-    
+
     @tsqlist.error
     async def tsqlist_error(self, ctx, error):
         if isinstance(error, commands.CommandOnCooldown):
@@ -677,6 +682,37 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
 
         res = await user_inventory(self, member.id, 'add', [str(ivent_key_name)], [item_id_uui])
         await ctx.send(res)
+
+    async def FindItemTypes(self):
+        x = await self.db.fetch("""
+            SELECT type_, string_agg('[' || item_type_id || ', ' || type_ || ', ' || name || ', ' || value || ']', ', ')
+                FROM itens
+                GROUP BY type_;
+        """)
+        if not x:
+            return False
+
+        z = [list(map(str.strip, u'{v[1]}'.strip('][').strip('][').replace("'", "").split(','))) for v in x]
+        # z = [list(map(str.strip, json.loads(u'%s' % v[1]))) for v in x]
+        types_ = [k[0] for k in x]
+
+        print(types_, z[0])
+        return types_, z[0]
+
+    @commands.command(name='showitens')
+    async def showitens(self, ctx):
+        items = await self.FindItemTypes()
+
+        if not items:
+            return await ctx.send("Não encontrei um item com esse id.")
+        emb = discord.Embed(
+            title="Itens", description="Aqui estão listados todos os itens cadastrados.").color = 0x006400
+
+        items_ = []
+        for i, value in enumerate(items):
+            items_.append(items[1])
+
+        await ctx.send(items)
 
 
 async def setup(bot: commands.Bot) -> None:
