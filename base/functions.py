@@ -101,17 +101,17 @@ async def starterRoles(self, msg):
     Adiciona os cargos criados à DB
     """
 
-    classes = self.bot.cfg.ranks
+    classes = self.cfg.ranks
     # x = []
-    colors = self.bot.cfg.colors
+    colors = self.cfg.colors
     count = 0
 
-    # await self.db.execute("""    
+    # await self.db.execute("""
     #     insert into ranks(name, badges, lvmin) select name, img_bdg, lvmin from molds on conflict (name) do nothing returning lvmin;
-    #""")
+    # """)
 
     for i, value in enumerate(classes):
-        
+
         z = colors[i]
         # x = tuple((z[0], z[1], z[2]))
         # ''.join((f"{z[0]}, {z[1]}, {z[2]}"))
@@ -129,14 +129,14 @@ async def starterRoles(self, msg):
                     '%(roleid)s', '%(badges)s', '%(imgxp)s' 
                 )
             """ % {
-                'rank_name': str(value), 
+                'rank_name': str(value),
                 'lv': int(count),
                 'r': int(z[0]),
                 'g': int(z[1]),
                 'b': int(z[2]),
                 'roleid': str(rankRole.id),
                 'badges': 'src/imgs/badges/rank/%s.png' % (imgPathName, ),
-                'imgxp': 'src/imgs/molduras/molduras-perfil/xp-bar/%s.png' % (imgPathName, ),})
+                'imgxp': 'src/imgs/molduras/molduras-perfil/xp-bar/%s.png' % (imgPathName, ), })
 
             # await self.db.fetch("""
             #    INSERT INTO ranks
@@ -150,8 +150,9 @@ async def starterRoles(self, msg):
             await msg.channel.send(f"`{o}`")
             raise
         else:
-            print_progress_bar(i, len(classes), " progresso de classes criadas")
-        finally:    
+            print_progress_bar(
+                i, len(classes), " progresso de classes criadas")
+        finally:
             count += 10
 
 
@@ -198,7 +199,8 @@ async def starterItens(self):
                 print(o)
                 raise
             else:
-                print_progress_bar(i, len(molduras), " progresso de classes criadas")
+                print_progress_bar(
+                    i, len(molduras), " progresso de classes criadas")
         # END MOLDS INSERT
 
         # START BANNERS INSERT
@@ -224,8 +226,9 @@ async def starterItens(self):
                 print(o)
                 raise
             else:
-                print_progress_bar(i, len(banners), " progresso de banners criadas")
-                
+                print_progress_bar(
+                    i, len(banners), " progresso de banners criadas")
+
         # END BANNERS INSERT
 
         # ADD BADGES INSERT
@@ -367,7 +370,7 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
             )
 
     elif opt == "remove":
-        res - await self.db.fetch("""
+        res = await self.db.fetch("""
             SELECT to_jsonb(
                 SELECT %s FROM iventory WHERE iventory_id=(\'%s\')
             )
@@ -387,10 +390,10 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
             else:
                 item_find = itens[0]
             # Get banner group
-            item_group = await self.db.fetch("""
-                SELECT group_ FROM %s WHERE id=(\'%s\')
-            """ % (f"{item_find}s" if item_find == "Banner" else item_find, itensId[0], ))
             try:
+                item_group = await self.db.fetch("""
+                    SELECT group_ FROM %s WHERE id=(\'%s\')
+                """ % (f"{item_find}" if item_find == "Badge" else item_find, itensId[0], ))
                 res = await self.db.fetch("""
                     UPDATE iventory SET itens = (
                         SELECT jsonb_insert(
@@ -420,7 +423,8 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
                                         WHERE iventory_id=('%(iINV)s')
                                     )::text
 
-                                )::jsonb
+                                )::jsonb,
+                                true
                             )
                         ) WHERE iventory_id=(
                             '%(iINV)s'
@@ -435,6 +439,9 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
         else:
             for i, value in enumerate(itens):
                 try:
+                    print("-"*20)
+                    print(itensId[i])
+                    print("-"*20)
                     res = await self.db.fetch("""
                         UPDATE iventory SET itens = (
                             SELECT jsonb_insert(
@@ -446,11 +453,30 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
                         ) WHERE iventory_id=(\'%(iINV)s\')
                         
                         RETURNING itens::json->'%(i)s'
-                    """ % {'i': str(itens[i]), 'iID': itensId[i], 'iINV': iventoryId, }
+                    """ % {'i': str(value), 'iID': itensId[i], 'iINV': iventoryId, }
                     )
                 except Exception as error:
                     if (isinstance(error, AttributeError)):
                         res = await self.db.fetch("""
+                            UPDATE iventory SET itens = (
+                                SELECT jsonb_set(
+                                    itens::jsonb,
+                                    '{%(i)s, ids, %(iID)s}'::text[],
+                                    (SELECT 
+                                        (
+                                            SELECT CAST(
+                                                itens::jsonb->'%(i)s'->'ids'->'%(iID)s' as INTEGER
+                                            ) + 1 as %(i)s_rank FROM iventory 
+                                            WHERE iventory_id=('%(iINV)s')
+                                        )::text
+
+                                    )::jsonb,
+                                    true
+                                )
+                            ) WHERE iventory_id=(
+                                '%(iINV)s'
+                            )
+                            
                             UPDATE iventory SET itens = (
                                 SELECT jsonb_insert(
                                     itens::jsonb,

@@ -6,8 +6,12 @@
     "postgresql_host": "localhost",
 
     "bot_mail": "",
-    "bot_mailpass": "",
+    "bot_maipass": "",
     "bot_mailhost": "",
+
+    "tidList": "",
+    "tkey": "",
+    "ttoken": "",
 
     "min_message_xp": 10,
     "max_message_xp": 25,
