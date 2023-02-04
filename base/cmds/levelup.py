@@ -46,7 +46,7 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
                 await self.db.execute("""
                         INSERT INTO iventory ( iventory_id, itens ) VALUES ( \'%s\',  '%s' );
                     """ % ( user_infos[0][4],
-                        '{"Carro": {"ids": []}, "Badge": {"rank": [], "equipe": [], "moldura": [], "apoiador": []}, "Banner": {"ids": []}, "Moldura": {"ids": []}, "Utilizavel": {"ids": []}}', 
+                        '{"Carro": {"ids": []}, "Badge": {"rank": [], "equipe": [], "moldura": [], "apoiador": []}, "Banner": {"ids": {}}, "Moldura": {"ids": []}, "Utilizavel": {"ids": []}}', 
                     )
                 )
                 current_xp = 0

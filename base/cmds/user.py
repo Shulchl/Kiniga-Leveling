@@ -14,12 +14,14 @@ from io import BytesIO
 
 from discord import File as dFile
 from discord import app_commands
+from discord.app_commands import AppCommandError
+
 from discord.ext import commands
 from discord.ext.commands.cooldowns import BucketType
 from discord.utils import format_dt
 
 from base.functions import (
-    get_roles, get_userBanner_func, get_userAvatar_func)
+    get_roles, get_userBanner_func, get_userAvatar_func, error_delete_after)
 from base.utilities import utilities
 from base.struct import Config
 from base.views import Paginacao
@@ -28,7 +30,7 @@ from base.views import Paginacao
 longest_cooldown = app_commands.checks.cooldown(
     2, 300.0, key=lambda i: (i.guild_id, i.user.id))
 activity_cooldown = app_commands.checks.cooldown(
-    1, 30.0, key=lambda i: (i.guild_id, i.user.id))
+    1, 5.0, key=lambda i: (i.guild_id, i.user.id))
 
 varBot = commands.Bot
 
@@ -46,9 +48,28 @@ class User(commands.Cog):
         with open('config.json', 'r') as f:
             self.cfg = Config(json.loads(f.read()))
 
+
+    async def cog_app_command_error(
+        self, 
+        interaction: discord.Interaction, 
+        error: AppCommandError
+    ):
+        if isinstance(
+            error, 
+            app_commands.CommandOnCooldown
+        ):
+            return await error_delete_after(interaction, error)
+        if isinstance(
+            error, 
+            app_commands.TransformerError
+        ):
+            return await interaction.response.send_message(
+                "O texto deve conter 80 caracteres ou menos, contando espaços.", ephemeral=True)
+
+
+    @activity_cooldown
     @app_commands.command(name='perfil', description='Monstrará informações sobre você xD')
     @app_commands.describe(member='Marque o usuário para mostrar seu nível. (opcional)')
-    @activity_cooldown
     async def perfil(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
 
         if member:
@@ -143,20 +164,12 @@ class User(commands.Cog):
         except Exception as e:
             raise e
 
-    @perfil.error
-    async def perfil_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.CommandOnCooldown):
-            res = await interaction.channel.send(
-                "%s você poderá usar este comando de novo." % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
-        else:
-            await interaction.channel.send(error)
-            raise error
-        await res.delete(error.retry_after)
+        
     # @longest_cooldown
 
+    @activity_cooldown
     @app_commands.command(name='nivel', description='Monstrará a barra de progresso, bem como a medalha de seu nível.')
     @app_commands.describe(member='Marque o usuário para mostrar seu nível. (opcional)')
-    @activity_cooldown
     async def nivel(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
 
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -186,7 +199,10 @@ class User(commands.Cog):
         d = re.sub('\\D', '', str(total))
         if int(d) > 0:
             try:
-                rankss = await self.db.fetch("SELECT name, badges, imgxp FROM ranks WHERE lvmin <= %s ORDER BY lvmin DESC" % (result[0][0], ))
+                rankss = await self.db.fetch("""SELECT name, badges, imgxp 
+                                                    FROM ranks 
+                                                    WHERE lvmin <= %s 
+                                                    ORDER BY lvmin DESC""" % (result[0][0], ))
                 if rankss:
                     moldName, moldImg, xpimg = rankss[0][0], rankss[0][1], rankss[0][2]
                 else:
@@ -199,21 +215,13 @@ class User(commands.Cog):
                     result[0][0], result[0][1], result[0][2],
                     moldName, moldImg, xpimg, background)
             except Exception as e:
-                print(e)
+                raise e
         else:
             await interaction.followup.send('É preciso adicionar alguma classe primeiro.')
 
-        await interaction.followup.send(file=dFile(fp=buffer, filename='profile_card.png'), ephemeral=True)
+        await interaction.followup.send(file=dFile(fp=buffer, filename='nivel_card.png'), ephemeral=True)
 
-    @nivel.error
-    async def nivel_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.CommandOnCooldown):
-            res = await interaction.channel.send(
-                "%s você poderá usar este comando de novo." % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
-        else:
-            await interaction.channel.send(error)
-        await res.delete(error.retry_after)
-
+    @activity_cooldown
     @app_commands.command()
     async def getavatar(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
         if member:
@@ -226,7 +234,7 @@ class User(commands.Cog):
             res = "Não consegui pegar o avatar do usuário. Provavelmente é padrão do discord xD"
 
         return await interaction.response.send_message(res, ephemeral=True)
-
+    @activity_cooldown
     @app_commands.command()
     async def getbanner(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
         if member:
@@ -240,8 +248,8 @@ class User(commands.Cog):
 
         return await interaction.response.send_message(res, ephemeral=True)
 
-    @app_commands.command(name='pescar')
     @activity_cooldown
+    @app_commands.command(name='pescar')
     async def pescar(self, interaction: discord.Interaction):
         luck = random.choice([True, False])
         if luck:
@@ -259,17 +267,8 @@ class User(commands.Cog):
             await interaction.response.send_message(
                 f"Você pescou {random.choice([str(i) for i in self.cfg.trash])}!", ephemeral=True)
 
-    @pescar.error
-    async def pescar_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.CommandOnCooldown):
-            res = await interaction.response.send_message(
-                "%s você poderá usar este comando de novo."
-                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")),
-                ephemeral=True)            # [ :-7 ]
-        await res.delete(error.retry_after)
-
-    @app_commands.command(name='topspark')
     @activity_cooldown
+    @app_commands.command(name='topspark')
     async def topspark(self, interaction: discord.Interaction):
         member = interaction.user
         total = await self.db.fetch('SELECT COUNT(rank) FROM users')
@@ -315,8 +314,8 @@ class User(commands.Cog):
                 await interaction.response.send_message('', embed=emb)
 
     #   classe
-    @app_commands.command(name='classes')
     @activity_cooldown
+    @app_commands.command(name='classes')
     async def classes(self, interaction: discord.Interaction):
         total = await self.db.fetch("SELECT COUNT(lvmin) FROM ranks")
         for t in total:
@@ -345,7 +344,7 @@ class User(commands.Cog):
             else:
                 await interaction.response.send_message("```Parece que não temos nenhuma classe ainda...```")
 
-#    @activity_cooldown
+    @activity_cooldown
     @app_commands.command(name='info')
     async def info(self, interaction: discord.Interaction, *, content: str) -> None:
         info = "".join(content)
@@ -361,22 +360,14 @@ class User(commands.Cog):
         await interaction.response.send_message(
             f"```Campo de informações atualizado. Visualize utilizando /perfil```", ephemeral=True)
 
-    @info.error
-    async def info_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.TransformerError):
-            return await interaction.response.send_message(
-                "O texto deve conter 80 caracteres ou menos, contando espaços.", ephemeral=True)
-        else:
-            return await interaction.response.send_message(
-                error, ephemeral=True)
-
-    @app_commands.command(name='delinfo')
     @activity_cooldown
+    @app_commands.command(name='delinfo')
     async def delinfo(self, interaction: discord.Interaction) -> None:
         await self.db.fetch(f"UPDATE users SET info = (\'\') WHERE id = ('{interaction.user.id}')")
         await interaction.response.send_message("```Campo de informações atualizado. "
                                                 "Visualize utilizando d.perfil```", ephemeral=True)
 
+    @activity_cooldown
     @app_commands.command(name='niver')
     @app_commands.checks.cooldown(1, 86400, key=lambda i: (i.guild_id, i.user.id))
     async def niver(self, interaction: discord.Interaction, niver: str) -> None:
@@ -389,22 +380,13 @@ class User(commands.Cog):
 
         await interaction.response.send_message("```Aniversário atualizado!```", ephemeral=True)
 
-    @niver.error
-    async def niver_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.CommandOnCooldown):
-            res = await interaction.response.send_message(
-                f"Você precisa esperar {str(datetime.timedelta(seconds=error.retry_after))[ :-7 ]} horas para poder "
-                f"usar este comando de novo.",
-                ephemeral=True)
-        await res.delete(error.retry_after)
-
+    @activity_cooldown
     @app_commands.command(name='delniver')
-    @longest_cooldown
     async def delniver(self, interaction: discord.Interaction) -> None:
         await self.db.fetch(f"UPDATE users SET birth = ('???') WHERE id = ('{interaction.user.id}')")
         await interaction.response.send_message("```Aniversário atualizado!```", ephemeral=True)
 
-    # @activity_cooldown
+    @activity_cooldown
     @app_commands.command(name='inv')
     async def inv(self, interaction: discord.Interaction) -> None:
         try:
@@ -484,17 +466,10 @@ class User(commands.Cog):
         except Exception as e:
             await interaction.response.send_message("```%s.```" % (e), ephemeral=True)
             raise e
-
-    @inv.error
-    async def inv_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.CommandOnCooldown):
-            res = await interaction.response.send_message(
-                f"Você precisa esperar {str(datetime.timedelta(seconds=error.retry_after))[ :-7 ]} horas para poder "
-                f"usar este comando de novo.",
-                ephemeral=True)
-        await res.delete(error.retry_after)
+        
 
     # description='Use diariamente para receber recompensas incríveis'
+    @longest_cooldown
     @app_commands.command(name='daily')
     # @app_commands.checks.cooldown(1, 86400)
     async def daily(self, interaction: discord.Interaction):
@@ -559,15 +534,7 @@ class User(commands.Cog):
                 await channel.send_message('Sua presença diária foi confirmada, confirme novamente em 24 horas '
                                            'para receber recompensas incríveis!', ephemeral=True)
 
-    @daily.error
-    async def daily_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.CommandOnCooldown):
-            res = await interaction.response.send_message(
-                f"Você precisa esperar {str(datetime.timedelta(seconds=error.retry_after))[ :-7 ]} horas para poder "
-                f"usar este comando de novo.",
-                ephemeral=True)
-        await res.delete(error.retry_after)
-
+    @activity_cooldown
     @app_commands.command(name='sparks')
     async def sparks(self, interaction: discord.Interaction):
         key_value = await self.db.fetch(f"SELECT spark FROM users WHERE id='{interaction.user.id}'")
