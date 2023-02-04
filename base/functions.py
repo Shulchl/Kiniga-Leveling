@@ -16,6 +16,7 @@ import numpy as np
 import asyncpg
 import json
 import sys
+import datetime
 
 from io import BytesIO
 from urllib.request import urlopen
@@ -25,6 +26,9 @@ from bs4 import BeautifulSoup
 from base.struct import Config
 from base.utilities import utilities
 from base.db.pgUtils import print_psycopg2_exception as pycopg_exception
+
+from discord.utils import format_dt
+
 
 __all__ = ['Functions']
 
@@ -45,6 +49,11 @@ def print_progress_bar(index, total, label):
         f"[{'=' * int(n_bar * progress):{n_bar}s}] {int(100 * progress)}%  {label}")
     sys.stdout.flush()
 
+async def error_delete_after(interaction, error):
+    return await interaction.response.send_message(
+            content="%s você poderá usar este comando de novo." % format_dt(datetime.datetime.now() + 
+                datetime.timedelta(seconds=error.retry_after), 'R'),
+            delete_after=int(error.retry_after)-1)
 
 def convert(time):
     """
@@ -154,6 +163,7 @@ async def starterRoles(self, msg):
                 i, len(classes), " progresso de classes criadas")
         finally:
             count += 10
+    print("Todas as classes foram criadas")
 
 
 async def starterItens(self):
@@ -201,6 +211,7 @@ async def starterItens(self):
             else:
                 print_progress_bar(
                     i, len(molduras), " progresso de classes criadas")
+        print("Todas as molduras foram criadas")
         # END MOLDS INSERT
 
         # START BANNERS INSERT
@@ -215,7 +226,8 @@ async def starterItens(self):
                         name, 
                         canbuy,
                         img_loja, 
-                        img_perfil ) 
+                        img_perfil 
+                    ) 
                     VALUES (
                         '%(name)s', true,
                         'src/imgs/banners/%(item)s',
@@ -228,6 +240,7 @@ async def starterItens(self):
             else:
                 print_progress_bar(
                     i, len(banners), " progresso de banners criadas")
+        print("Todas os banners foram criadas")
 
         # END BANNERS INSERT
 
@@ -235,6 +248,7 @@ async def starterItens(self):
         await self.db.execute("""
             insert into badges(name, img, lvmin) select name, img_bdg, lvmin from molds on conflict (name) do nothing;
         """)
+        print("Todas as badges foram criadas")
 
         # TITULOS NÃO SÃO MAIS SUPORTADOS
 
@@ -325,7 +339,7 @@ def banner_image_choose():
 
 
 async def get_iventory(self, memberId):
-    id = await self.db.fetch("""
+    id = await self.db.fetchrow("""
         SELECT itens::jsonb FROM iventory WHERE iventory_id=(
                 SELECT iventory_id FROM users WHERE id = ('%s')
         )
@@ -334,7 +348,22 @@ async def get_iventory(self, memberId):
     return id[0][0]
 
 
-async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "add"]], iventory_key: list = None, newValue: list = None):
+async def user_inventory(
+    self, 
+    member, 
+    opt: Optional[
+        Literal[
+            "get", "remove", "add"
+        ]
+    ], 
+    iventory_key = None, 
+    newValue = None
+):
+    res = ""
+    itensId = newValue
+    if isinstance(itensId, list):
+        itensId = [i for i in itensId]
+    
     iventoryId = await self.db.fetch("SELECT iventory_id FROM users WHERE id = (\'%s\')" % (member, ))
     if iventoryId:
         iventoryId = iventoryId[0][0]
@@ -346,7 +375,8 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
         itens = "itens::jsonb"
 
     if opt == "get":
-        if "Badge" or "Moldura" in iventory_key:
+        
+        if iventory_key in ["Badge", "Moldura"]:
             res = await self.db.fetch("""
                     SELECT * FROM jsonb_each_text(
                         (
@@ -356,18 +386,33 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
                     );
                 """ % (str(itens), iventoryId, )
             )
-        else:
-            res = await self.db.fetch("""
-                SELECT * FROM jsonb_each_text(
-                    (
-                        SELECT %s FROM iventory WHERE iventory_id=(\'%s\')
+        elif iventory_key == "Banner":
+            try:
+                res = await self.db.fetch(
+                    """
+                        SELECT itens::jsonb->'Banner'->'ids'->\'%s\' as %s_item FROM iventory
+                        WHERE iventory_id=(\'%s\')
+                    """ % ( 
+                        itensId, 
+                        iventory_key, 
+                        iventoryId, 
                     )
                 )
-                    
-            """ % (
-                str(itens),
-                iventoryId, )
-            )
+            except Exception as err:
+                print(err)
+        else:
+            res = await self.db.fetch(
+                """
+                    SELECT * FROM jsonb_each_text(
+                        (
+                            SELECT %s FROM iventory WHERE iventory_id=(\'%s\')
+                        )
+                    )
+                        
+                """ % (
+                    str(itens),
+                    iventoryId, )
+                )
 
     elif opt == "remove":
         res = await self.db.fetch("""
@@ -379,21 +424,23 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
         """ % (str(itens), iventoryId, newValue)
         )
     elif opt == "add":
-        itens = [f"{i}" for i in iventory_key]
-        itensId = [i for i in newValue]
-        print(itens[0])
-        if itens[0] == 'Badge' or itens[0] == 'Moldura':
-            if itens[0] == 'Badge':
+
+        if iventory_key == 'Badge' or iventory_key == 'Moldura':
+            if iventory_key[0] == 'Badge':
                 item_find = 'badges'
-            elif itens[0] == 'Moldura':
+            elif iventory_key[0] == 'Moldura':
                 item_find = 'molds'
             else:
-                item_find = itens[0]
+                item_find = iventory_key[0]
             # Get banner group
             try:
-                item_group = await self.db.fetch("""
-                    SELECT group_ FROM %s WHERE id=(\'%s\')
-                """ % (f"{item_find}" if item_find == "Badge" else item_find, itensId[0], ))
+                item_group = await self.db.fetch(
+                    """
+                        SELECT group_ FROM %s WHERE id=(\'%s\')
+                    """ % (
+                        item_find if item_find == "Badge" else item_find, itensId, 
+                    )
+                )
                 res = await self.db.fetch("""
                     UPDATE iventory SET itens = (
                         SELECT jsonb_insert(
@@ -406,7 +453,7 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
                     ) WHERE iventory_id=('%s')
 
                     RETURNING itens::jsonb;
-                """ % (itens[0], item_group[0][0], itensId[0], iventoryId)
+                """ % (iventory_key, item_group[0][0], itensId, iventoryId)
                 )
             except Exception as error:
                 if (isinstance(error, AttributeError)):
@@ -431,72 +478,68 @@ async def user_inventory(self, member, opt: Optional[Literal["get", "remove", "a
                         )
 
                         RETURNING itens::jsonb;
-                    """ % {'i': itens[0], 'iGoup': item_group[0][0], 'iID': itensId[0], 'iINV': iventoryId}
+                    """ % {'i': iventory_key, 'iGoup': item_group[0][0], 'iID': itensId, 'iINV': iventoryId}
                     )
                 else:
                     raise error
 
         else:
-            for i, value in enumerate(itens):
-                try:
-                    print("-"*20)
-                    print(itensId[i])
-                    print("-"*20)
-                    res = await self.db.fetch("""
+            try:
+                res = await self.db.fetch(
+                    """
                         UPDATE iventory SET itens = (
                             SELECT jsonb_insert(
                                 itens::jsonb,
-                                '{%(i)s, ids, %(iID)s}'::text[],
+                                \'{%(i)s, ids, %(iID)s}\'::text[],
                                 '1'::jsonb,
                                 true
                             )
                         ) WHERE iventory_id=(\'%(iINV)s\')
                         
-                        RETURNING itens::json->'%(i)s'
-                    """ % {'i': str(value), 'iID': itensId[i], 'iINV': iventoryId, }
-                    )
-                except Exception as error:
-                    if (isinstance(error, AttributeError)):
-                        res = await self.db.fetch("""
-                            UPDATE iventory SET itens = (
-                                SELECT jsonb_set(
+                        RETURNING itens::jsonb->'%(i)s'->'%(iID)s'
+                    """ % {
+                        'i': iventory_key, 
+                        'iID': itensId, 
+                        'iINV': iventoryId, 
+                    }
+                )
+            except Exception as error:
+                if (isinstance(error, AttributeError)):
+                    try:
+                        res = await self.db.fetch(
+                            """
+                                UPDATE iventory SET itens = jsonb_set(
                                     itens::jsonb,
                                     '{%(i)s, ids, %(iID)s}'::text[],
-                                    (SELECT 
-                                        (
-                                            SELECT CAST(
-                                                itens::jsonb->'%(i)s'->'ids'->'%(iID)s' as INTEGER
-                                            ) + 1 as %(i)s_rank FROM iventory 
-                                            WHERE iventory_id=('%(iINV)s')
-                                        )::text
-
+                                    (
+                                        SELECT COALESCE(
+                                            (
+                                                SELECT CAST(
+                                                    itens::jsonb->\'%(i)s\'->'ids'->\'%(iID)s\' as INTEGER
+                                                ) + 1  FROM iventory
+                                                WHERE iventory_id=(\'%(iINV)s\')
+                                            ), 0 
+                                        )::text as %(i)s_rank
                                     )::jsonb,
                                     true
                                 )
-                            ) WHERE iventory_id=(
-                                '%(iINV)s'
-                            )
-                            
-                            UPDATE iventory SET itens = (
-                                SELECT jsonb_insert(
-                                    itens::jsonb,
-                                    '{%(i)s, ids, %(iID)s}'::text[],
-                                    (SELECT 
-                                        (
-                                            SELECT CAST(
-                                                itens::jsonb->'%(i)s'->'ids'->'%(iID)s' as INTEGER
-                                            ) + 1 as %(i)s_rank FROM iventory 
-                                            WHERE iventory_id=(\'%(iINV)s\')
-                                        )::text
-
-                                    )::jsonb,
-                                    true
+                                WHERE iventory_id=(
+                                    \'%(iINV)s\'
                                 )
-                            ) WHERE iventory_id=(\'%(iINV)s\')
-                            
-                            RETURNING itens::json->'%(i)s'
-                        """ % {'i': str(itens[i]), 'iID': itensId[i], 'iINV': iventoryId, }
+                                
+                                RETURNING itens::jsonb->'%(i)s'->'ids'
+                            """ % {
+                                'i': iventory_key, 
+                                'iID': itensId, 
+                                'iINV': iventoryId, 
+                            }
                         )
+                        print(res)
+                    except Exception as a:
+                        print(a)
+                else:
+                    print (error)
+                print("\n\nDeu certo.\nEu acho....\n\n")
 
     return res
 # FUNÇÕES DE NOVO AUTOR
@@ -622,32 +665,66 @@ async def getRelease(self, interaction):
                         # print("*" * 20)
                         # print( emb.to_dict().get('url') )
                         if emb.to_dict().get('url') == oldEmb.to_dict().get('url'):
-                            emb = discord.Embed(
+                            return  discord.Embed(
                                 title="Ops",
-                                description="Essa história Já Foi Publicada!",
+                                description="História já publicada.",
                                 color=0x00ff33).set_author(
                                 name="Kiniga Brasil",
                                 url='https://kiniga.com/',
                                 icon_url='https://kiniga.com/wp-content/uploads/fbrfg/favicon-32x32.png'
                             ).set_footer(text='Qualquer coisa, marque o Shuichi! :D')
 
-                        return emb
-
                     except Exception as a:
 
-                        print(f"Ocorreu um erro no embed\n\n{a}")
-                        interaction.user.send(embed=discord.Embed(
-                            title=f"Erro!",
-                            description="\nUm erro ocorreu devido ao seguinte problema: \n\n{}.".format(
-                                a),
+                        return discord.Embed(
+                            title=f"Erro",
+                            description=str(a),
                             color=0x00ff33).set_author(
                             name="Kiniga Brasil",
                             url='https://kiniga.com/',
                             icon_url='https://kiniga.com/wp-content/uploads/fbrfg/favicon-32x32.png'
-                        ).set_footer(text='Qualquer coisa, marque o Shuichi! :D'))
+                        ).set_footer(text='Qualquer coisa, marque o Shuichi! :D')
+                    
+                    return emb
+
                 except Exception as i:
                     await interaction.user.send("Não foi possível prosseguir por conta do seguinte erro: \n\n"
                                                 "```{}``` \n\nPor favor, fale com o Shuichi".format(i))
         except Exception as u:
             await interaction.user.send("Não foi possível prosseguir por conta do seguinte erro: \n\n"
                                         "```{}``` \n\nPor favor, fale com o Shuichi".format(u))
+
+
+async def getfile(message):
+    fileInfo = []
+    attach = message.attachments
+    for i, value in enumerate(attach):
+
+        # Por enquanto, só quero 1 arquivo. Porém, se precisar de mais, o código está pronto
+        if i >= 1:
+            break
+        try:
+            fileInfo.append(
+                [attach[1].url,
+                attach[1].filename]
+            )
+        except Exception as err:
+            fileInfo.append(
+                [attach[0].url,
+                attach[0].filename]
+            )
+
+    res = None
+    try:
+        url = fileInfo[0][0]
+        filename = fileInfo[0][1]
+        r = requests.get(url, stream=True)
+        r.raise_for_status()
+        with open('./_temp/h/%s' % (filename), 'w') as f:
+            f.write(r.text)
+        f.close()
+        res = r.text
+
+    except Exception as e:
+        raise e
+    return filename, res

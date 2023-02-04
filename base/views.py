@@ -16,7 +16,7 @@ from discord import File as dFile
 
 from base.struct import Config
 
-from base.functions import (getRelease, sendEmb)
+from base.functions import (getRelease, sendEmb, getfile)
 
 
 class Paginacao(View):
@@ -121,20 +121,29 @@ class Paginacao(View):
                 )
                 return False
         return True
+
 class reviewButton(View):
     def __init__(self, *, timeout=180) -> None:
         super().__init__(timeout=timeout)
         self.status = None
 
+    def remove_buttons(self):
+        for i in self.children:
+            i.disabled = True
+
     async def on_timeout(self):
-        for child in self.children:
-            child.disable = True
-        await self.response(view=self)
+        self.remove_buttons()
+
+        await interaction.response.edit_message(view=self)
         self.stop()
 
     @ui.button(label='Sim', style=discord.ButtonStyle.green)
     async def accept_button(self, interaction, button):
         self.status = 'accept'
+
+        self.remove_buttons()
+
+        await interaction.response.edit_message(view=self)
 
         self.stop()
 
@@ -142,13 +151,20 @@ class reviewButton(View):
     async def refuse_button(self, interaction, button):
         self.status = 'refuse'
 
+        self.remove_buttons()
+
+        await self.response(view=self)
+
         self.stop()
 
     @ui.button(label='Cancelar', style=discord.ButtonStyle.gray)
     async def cancel_button(self, interaction, button):
-        for i in self.children:
-            i.disabled = True
+        self.status = 'cancel'
+
+        self.remove_buttons()
+
         await interaction.response.edit_message(content='', view=self)
+
         self.stop()
 
 class publishButton(View):
@@ -158,6 +174,7 @@ class publishButton(View):
         self.user_discord = user_discord
         self.hid = hid
         self.message = message
+        self.response = None
 
         with open('config.json', 'r') as f:
             self.cfg = Config(json.loads(f.read()))
@@ -165,8 +182,7 @@ class publishButton(View):
     async def release(self, interaction):
         # author = await self.fetch_user(interation.user.id)
         if not self.user_discord:
-            return await interaction.response.send_message(
-                'Você não adicionou um autor.', delete_after=15, ephemeral=True)
+            return 'Você não adicionou um autor.'
 
         if isinstance(self.user_discord, discord.Member):
             user = interaction.guild.get_member(self.user_discord.id)
@@ -181,114 +197,88 @@ class publishButton(View):
             user = interaction.guild.get_member_named(member)
 
         if not user:
-            return await interaction.response.send_message(
-                "Não encontrei ninguém com o nome \"%s\"." % (user if user != None else self.user_discord, ), ephemeral=True)
+            return "Não encontrei ninguém com o nome %s." % (user if user != None else self.user_discord, )
+        # CANAIS ÚTEIS
+        self.autorRole = discord.utils.get(interaction.guild.roles,
+                                      id=self.cfg.aut_role)
+        self.creatorRole = discord.utils.get(interaction.guild.roles,
+                                        id=self.cfg.creat_role)
+        self.markAuthorRole = discord.utils.get(interaction.guild.roles,
+                                           id=self.cfg.mark_role)
+        self.channel = interaction.guild.get_channel(self.cfg.chat_release)
 
         try:
-            autorRole = discord.utils.get(interaction.guild.roles,
-                                          id=self.cfg.aut_role)
-            creatorRole = discord.utils.get(interaction.guild.roles,
-                                            id=self.cfg.creat_role)
-            markAuthorRole = discord.utils.get(interaction.guild.roles,
-                                               id=self.cfg.mark_role)
-            eqpRole = discord.utils.get(interaction.guild.roles,
-                                        id=self.cfg.eqp_role)
-            channel = interaction.guild.get_channel(self.cfg.chat_release)
+            # await interaction.response.defer(ephemeral=False, thinking=True)
+            releaseMessage = await getRelease(self, interaction)
+            userMessages = await sendEmb(user=user, author=interaction.user)
 
-            embb = discord.Embed(title='Deseja lançar uma nova história?',
-                                 description='O ideal seria aguardar alguns segundos após publicar, para que o bot possa identificar a nova história',
-                                 color=discord.Color.green()).set_footer(text='Use a reação para confirmar.')
+            ## Fazer um doc de errors para embeds ##
+        except Exception as u:
+            return await interaction.channel.send(content= "`%s`" % ( u, ), delete_after=10 )
 
-            view = reviewButton()
-            view.remove_item(view.cancel_button)
+        else:
+            newres = releaseMessage.to_dict()
 
-            await interaction.response.edit_message(embed=embb, view=view)
+            if newres["title"] == "Ops" or newres["title"] == "Erro":
+                newres["title"] = "A história%s não foi publicada pelo seguinte motivo:" % (self.hid,)
+                releaseMessage = Embed.from_dict(newres)
 
-            await view.wait()
-            # eqpRole in i.user.roles and
+            else:
+                # '\@everyone',
 
-            if view.status == 'accept':
-                try:
-                    # await interaction.response.defer(ephemeral=False, thinking=True)
-                    releaseMessage = await getRelease(self, interaction)
-                    userMessages = await sendEmb(user=user, author=interaction.user)
+                await self.channel.send(embed=releaseMessage)
 
-                    ## Fazer um doc de errors para embeds ##
-                except Exception as u:
-                    return await interaction.user.send(content=u)
+                await user.add_roles(
+                    self.markAuthorRole, 
+                    self.autorRole, 
+                    self.creatorRole if not self.markAuthorRole in user.roles else self.autorRole, self.creatorRole)
 
-                else:
-                    if releaseMessage.title == "Ops":
-                        return await interaction.channel.send(embed=releaseMessage)
-                    else:
-                        # '\@everyone',
+                await user.send(embeds=userMessages)
+                
+                releaseMessage = discord.Embed(
+                    title=f"História Publicada!",
+                    color=0x00ff33)
 
-                        await channel.send(embed=releaseMessage)
-
-                        await user.add_roles(markAuthorRole, autorRole, creatorRole if not markAuthorRole in user.roles else autorRole, creatorRole)
-
-                        await user.send(embeds=userMessages)
-
-                        releaseMessage = discord.Embed(
-                            title=f"História Publicada!",
-                            color=0x00ff33).set_author(
-                            name="Kiniga Brasil",
-                            url='https://kiniga.com/',
-                            icon_url='https://kiniga.com/wp-content/uploads/fbrfg/favicon-32x32.png'
-                        ).set_footer(text='Qualquer coisa, marque o Shuichi! :D')
-
-                return releaseMessage
-
-            elif view.status == 'refuse':
-                try:
-                    emb = discord.Embed(
-                        description='Certo!',
-                        color=discord.Color.blue())
-                    await user.remove_roles(markAuthorRole, autorRole, creatorRole
-                                            if not markAuthorRole in user.roles
-                                            else autorRole, creatorRole)
-
-                    return emb
-                except Exception as a:
-                    return "%s Não consegui finalizar por conta do seguinte erro: \n%s \n\n Marca o Jonathan aí." % (interaction.user.mention, a, )
-        # Fim
-        except Exception as e:
-            return "Ocorreu um erro \n `%s` \n Tente novamente em alguns segundos." % (e, )
+        return releaseMessage
 
     @ui.button(label='Publicar', style=discord.ButtonStyle.green)
     async def publish_button(self, interaction, button):
         self.status = 'publish'
+        await interaction.response.defer(ephemeral=True, thinking=True)
         res = await self.release(interaction)
-        try:
-            if (isinstance(res, str)):
-                await interaction.response.edit_message(content=res)
-            elif (isinstance(res, discord.Embed)):
-                newres = res.to_dict()
-                newres["title"] = "História %s publicada" % (self.hid,)
-                res = Embed.from_dict(newres)
-                await interaction.response.edit_message(embed=res)
-        except: 
-            await interaction.message.delete()
-            if (isinstance(res, str)):
-                await interaction.channel.send(content=res)
-            elif (isinstance(res, discord.Embed)):
-                newres = res.to_dict()
-                newres["title"] = "História %s não publicada" % (self.hid,)
-                res = Embed.from_dict(newres)
-                await interaction.channel.send(embed=res)
-        #await self.message.edit(content="**Aceita** (#%s)" % (self.hid))
-        await self.message.add_reaction('✔')
+        
+        for i in self.children:
+            self.remove_item(i)
+
+        if (isinstance(res, discord.Embed)):
+            await interaction.followup.send(content='', embed=res, view=self)
+        
+        elif (isinstance(res, str)):
+            await interaction.followup.send(content=res, embed=None, view=self)
+        await self.message.edit("História %s já publicada." % (hid.group(), ) ) 
         self.stop()
 
     @ui.button(label='Remover', style=discord.ButtonStyle.red)
     async def remove_button(self, interaction, button):
         self.status = 'remove'
+
         for i in self.children:
             self.remove_item(i)
-        hid = re.search(r"#\d+", str(interaction.message.content))
-        await interaction.response.edit_message(content='`História %s retirada da fila por %s.`' % (hid.group(), interaction.user), view=self)
-        await self.message.add_reaction('❌')
+
+        hid = re.search(r"#\d+", str(self.message.content))
+
+        filename, _ = await getfile(self.message)
+
+        for file in os.listdir(os.path.join('./_temp/h/')):
+            if str(file[:-4]) == str(filename[:-4]):
+                os.remove('./_temp/h/%s' % (filename, ))
+
+        await interaction.response.edit_message(
+            content='`História %s retirada da fila.`' % (hid.group()), view=self)
+        await self.message.edit(content="História %s retirada da fila." % ( hid.group(), ) )
+
         self.stop()
+
 class SimpleModalWaitFor(Modal):
     def __init__(
         self,

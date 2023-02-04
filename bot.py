@@ -21,6 +21,7 @@ path = os.path.abspath(os.path.join(basePath, '_temp'))
 isExist = os.path.exists(path)
 if not isExist:
     os.mkdir(path)
+    os.mkdir(os.path.join(path, 'h'))
 
 def log_handler() -> logging.Logger:
     logger = logging.getLogger()
@@ -54,11 +55,11 @@ class SpinovelBot(commands.Bot):
             activity=atividade
         )
 
-        print('Excluindo arquivos temporários...')
         for filename in os.listdir('./_temp'):
-            print('Removendo %s ' % (filename, ))
-            os.remove('./_temp/%s' % (filename, ))
-            print('%s removido.' % (filename, ))
+            if filename.endswith('.py'):
+                print('Removendo %s ' % (filename, ))
+                os.remove('./_temp/%s' % (filename, ))
+                print('%s removido.' % (filename, ))
 
     async def load_cogs(self) -> None:
         for filename in os.listdir('./base/cmds'):
@@ -73,8 +74,7 @@ class SpinovelBot(commands.Bot):
                     raise e
 
     async def setup_hook(self) -> None:
-        print(
-            f'Logado como {self.user} (ID: {self.user.id}) usando discord.py {discord.__version__}')
+        #print(f'Logado como {self.user} (ID: {self.user.id}) usando discord.py {discord.__version__}')
         print('------')
         await self.load_cogs()
         # self.tree.copy_global_to(guild=TEST_GUILD)

@@ -2,25 +2,32 @@ import asyncio
 import datetime
 import json
 import random
-import aiohttp
+import os
 
 from asyncio import sleep as asyncsleep
 
 import discord
-import discord.utils
 from discord import File as dFile
 from discord.ext import commands, tasks
 from discord.utils import format_dt
 
-from base.functions import (convert, giveway_idFunction,
-                            starterRoles, starterItens, timeRemaning, user_inventory)
+from base.functions import (
+    convert, 
+    giveway_idFunction,
+    starterRoles, 
+    starterItens, 
+    timeRemaning, 
+    user_inventory,
+    get_userAvatar_func
+)
 from base.image import ImageCaptcha
 from base.struct import Config
 from base.utilities import utilities
+
+
 from typing import Literal, Optional
 
 from io import BytesIO
-
 
 class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     def __init__(self, bot: commands.Bot) -> None:
@@ -36,6 +43,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
 
     def cog_unload(self):
         self.bdayloop.close()
+
 
     # CONFIG
 
@@ -54,29 +62,32 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         943172687642132591,
         943193084584402975,
         943251043838468127)
-    async def sorteio(self, ctx):
-        await ctx.send("Responda em 15 segundos.\n")
-        q = ["Onde você quer que o sorteio aconteça? (marque o canal)",
-             "Quanto tempo o sorteio vai durar?",
-             "Qual é o prêmio?"]
+    async def sorteio(self, ctx, channel : discord.Object, time : str, prize : str ):
+        if channel and time and prize:
+            ans = [channel.id, time, str(prize.replace('"', ''))]
+        else:
+            ans = []
 
-        ans = []
+            await ctx.send("Responda em 15 segundos.\n")
+            q = ["Onde você quer que o sorteio aconteça? (marque o canal)",
+                 "Quanto tempo o sorteio vai durar?",
+                 "Qual é o prêmio?"]
 
-        def validation(currentMessage):
-            return currentMessage.author == ctx.author and currentMessage.channel == ctx.channel
+            def validation(currentMessage):
+                return currentMessage.author == ctx.author and currentMessage.channel == ctx.channel
 
-        for i in q:
-            await ctx.send(i)
+            for i in q:
+                await ctx.send(i)
 
-            try:
-                msg = await self.bot.wait_for('message', timeout=15.0, check=validation)
-            except asyncio.TimeoutError:
-                await ctx.send('Você não respondeu a tempo.', delete_after=5)
-                return
-            else:
-                ans.append(msg.content)
+                try:
+                    msg = await self.bot.wait_for('message', timeout=15.0, check=validation)
+                except asyncio.TimeoutError:
+                    return await ctx.send('Você não respondeu a tempo.', delete_after=5)
+                    
+                else:
+                    ans.append(msg.content)
         try:
-            channel_id = int(ans[0][2:-1])
+            channel_id = int(ans[0]) #[2:-1]
         except Exception as e:
             return await ctx.send(f"Não consegui encontrar esse canal. {e}", delete_after=5)
 
@@ -89,17 +100,17 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         elif time == -2:
             await ctx.send("O tempo tem que ser em números inteiros.", delete_after=5)
             return
-        global prize
-        prize = ans[2]
-        if prize.startswith("#"):
-            pName = await self.db.fetch(f"SELECT name, id FROM itens WHERE id ='{int(prize.strip('#'))}'")
+        global prize_
+        prize_ = ans[2]
+        if prize_.startswith("#"):
+            pName = await self.db.fetch(f"SELECT name, id FROM itens WHERE id ='{int(prize_.strip('#'))}'")
             if pName:
-                prize = pName[0][0]
+                prize_ = pName[0][0]
         await ctx.send(f"O sorteio ocorrerá em {channel.mention} e vai durar {ans[ 1 ]}!")
 
         # embed = discord.Embed(
         #     title="Giveaway!",
-        #     description=f"{prize}",
+        #     description=f"{prize_}",
         #     color= 0x006400
         # )
         # embed.add_field(
@@ -112,11 +123,11 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         end = datetime.timedelta(seconds=(3600 * 5)) + \
             datetime.timedelta(seconds=time)
         embed = discord.Embed(
-            title=f"Reaja com 🎉 para ganhar **{prize}**!\nTempo até o vencedor ser decidido:  **{timeRemaning(time)}**",
+            title=f"Reaja com 🎉 para ganhar **{prize_}**!\nTempo até o vencedor ser decidido:  **{timeRemaning(time)}**",
             description="",
             color=0x006400
         )
-        embed.set_author(name=f'{prize}', icon_url='')
+        embed.set_author(name=f'{prize_}', icon_url='')
         embed.add_field(
             name=f"Criado por:",
             value=ctx.author.mention
@@ -131,15 +142,34 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         await my_msg.add_reaction("🎉")
         await asyncio.sleep(time)
 
-        new_msg = await channel.fetch_message(my_msg.id)
-        users = await new_msg.reactions[0].users().flatten()
-        users.pop(users.index(self.bot.user))
+        
 
-        winner = random.choice(users)
+        try:
+            new_msg = await channel.fetch_message(my_msg.id)
+        except:
+            return await ctx.send("O ID fornecido é incorreto")
 
-        # // {winner.mention} ganhou {prize}
+        reaction = new_msg.reactions[0]
+        users = set()
+        async for user in reaction.users():
+            users.add(user)
+
+        users.remove(self.bot.user)
+
+        await ctx.send(f"users: {', '.join(user.name for user in users)}")        
+
+        if len(users) > 1:
+            winner = random.choice(users)
+        else:
+
+            winner = next(iter(users or []), None)
+        # // {winner.mention} ganhou {prize_}
         await channel.send(
-            f"Parabéns, {winner.mention}!.\nVocê tem 1 minuto para falar no canal, do contrário o sorteio será refeito.")
+            "Parabéns, %s!.\n`Você tem %s minutos para falar no canal, do contrário o sorteio será refeito.`" % 
+            (winner.mention, format_dt(datetime.datetime.now() + 
+                datetime.timedelta(seconds=60), 'R')),
+            delete_after=59)
+
         await channel.set_permissions(winner, send_messages=True)
 
         # await channel.send(winner.id)
@@ -149,7 +179,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
 
         try:
             msg = await self.bot.wait_for('message', timeout=10.0, check=winner_validation)
-            if prize.startswith("#"):
+            if prize_.startswith("#"):
                 invent = await self.db.fetch(f"SELECT inv FROM users WHERE id=(\'{winner.id}\')")
                 if invent:
                     if str(pName[0][1]) in invent[0][0].split(","):
@@ -161,10 +191,10 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
                     else:
                         await self.db.fetch(
                             f"UPDATE users SET inv = (\'{str(invent[ 0 ][ 0 ]) + ',' + str(pName[ 0 ][ 1 ])}\') WHERE id=(\'{winner.id}\') ")
-                        await channel.send(f"Parabéns! {winner.mention} acaba de ganhar {prize}.")
+                        await channel.send(f"Parabéns! {winner.mention} acaba de ganhar {prize_}.")
                         await channel.set_permissions(winner, send_messages=False)
             else:
-                await channel.send(f"Parabéns! {winner.mention} acaba de ganhar {prize}.")
+                await channel.send(f"Parabéns! {winner.mention} acaba de ganhar {prize_}.")
                 await channel.set_permissions(winner, send_messages=False)
         except asyncio.TimeoutError:
             await ctx.send(f'Que pena, {winner}, mas terei que refazer o sorteio...')
@@ -232,12 +262,29 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         except:
             return await ctx.send("O ID fornecido é incorreto")
 
-        users = await new_msg.reactions[0].users().flatten()
-        users.pop(users.index(self.bot.user))
-        nWinner = random.choice(users)
-        while lastWinner == nWinner:
+        reaction = new_msg.reactions[0]
+
+        users = set()
+        async for user in reaction.users():
+            users.add(user)
+
+        users.remove(self.bot.user)
+
+        await ctx.send(f"users: {', '.join(user.name for user in users)}")
+
+        if len(users) > 0:
             nWinner = random.choice(users)
-        await channel.send(f"Parabéns! {nWinner.mention} acaba de ganhar {prize}.")
+        else:
+            nWinner = next(iter(users or []), None)
+
+        print(nWinner)
+
+        if lastWinner == nWinner and len(users) > 1:
+            nWinner = random.choice(users)
+        else:
+            return await channel.send("`Número insuficiênte de articipantes.`")
+
+        await channel.send(f"Parabéns, {nWinner.mention}! Você ganhou.")
 
     # LOOP DE ANIVERSÁRIO // BDAY LOOP
     @tasks.loop(seconds=10, count=1)
@@ -456,9 +503,8 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     @commands.command(name='ranking')
     async def ranking(self, ctx, opt: Optional[Literal["Ori", "Nivel"]]):
         await ctx.message.delete()
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{ctx.author.display_avatar.url}?size=1024?format=png") as resp:
-                profile_bytes = await resp.read()
+
+        profile_bytes = await get_userAvatar_func()
 
         if not opt:
             opt = "Nivel"
@@ -511,7 +557,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     @commands.has_permissions(administrator=True)
     async def updateitens(self, ctx, opt: Optional[
         Literal[
-            "loja", "*", "molds", "titulos", "util", "banners", "badges"
+            "loja", "*", "molds", "titulos", "util", "banners", "badges", "others"
         ]
     ] = None):
         res = []
@@ -530,14 +576,17 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
             res = await self.updateutil()
         elif opt == "badges":
             res = await self.updatebadges()
+        elif opt == "others":
+            res = await self.updateothers()
         elif opt == "*":
             res.append([
-                await self.updatemolds(),
-                await self.updatebanners(),
-                await self.updatebadges(),
-                await self.updateutil(),
-                await self.shopupdate()
-            ])
+                            await self.updatemolds(),
+                            await self.updatebanners(),
+                            await self.updatebadges(),
+                            await self.updateutil(),
+                            await self.updateothers(),
+                            await self.shopupdate()
+                        ])
         if isinstance(res, list):
             for i in res:
                 await ctx.send(i)
@@ -652,13 +701,87 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         else:
             return ("`As badges foram atualizadas com sucesso.`")
 
+    async def updateothers(self):
+        try:
+
+            badges_staff = 'src/imgs/badges/equipe/'
+            for e in os.listdir(badges_staff):
+                if e.endswith('.png'):
+                    print(str(e[:-4].title()))
+                    print(badges_staff + e)
+                    await self.db.execute(
+                        """
+                            INSERT INTO badges (
+                                name, 
+                                img, 
+                                canbuy, 
+                                value, 
+                                type_, 
+                                group_, 
+                                category
+                            )
+                            VALUES (\'%s\', \'%s\', %s, %s, \'%s\', \'%s\', \'%s\') ON CONFLICT (name) DO NOTHING
+                        """ % ( 
+                            str(e[:-4]).title(), 
+                            str(badges_staff + e), 
+                            False, 
+                            99999999, 
+                            "Badge", 
+                            "equipe", 
+                            "Lendário"
+                        )
+                    )
+
+
+            badges_supporter = 'src/imgs/badges/supporter/'
+            for e in os.listdir(badges_supporter):
+                if e.endswith('.png'):
+                    print(str(e[:-4].title()))
+                    print(badges_supporter + e)
+                    await self.db.execute(
+                        """
+                            INSERT INTO badges (
+                                name, 
+                                img, 
+                                canbuy, 
+                                value, 
+                                type_, 
+                                group_, 
+                                category
+                            )
+                            VALUES (\'%s\', \'%s\', %s, %s, \'%s\', \'%s\', \'%s\') ON CONFLICT (name) DO NOTHING 
+                        """ % ( 
+                            str(e[:-4].title()), 
+                            str(badges_supporter + e),
+                            False, 
+                            99999999, 
+                            "Badge", 
+                            "apoiador", 
+                            "Lendário"
+                        )
+                    )
+
+        except Exception as e:
+            return (f"Não foi possível atualizar outros itens: \n`{e}`")
+        else:
+            return ("`Outros itens também foram atualizado.`")
+
     @commands.command(name='itens')
-    async def getitens(self, ctx, opt:
-                       Optional[
-                           Literal[
-            "Moldura", "Titulo", "Utilizavel", "Banner", "Badges", "Carro"
-                               ]
-                       ] = None):
+    async def getitens(
+        self, 
+        ctx,
+        opt:
+           Optional[
+               Literal[
+                "Moldura", 
+                "Titulo", 
+                "Utilizavel", 
+                "Banner", 
+                "Badges", 
+                "Carro"
+               ]
+           ] = None
+        ):
 
         user_id = ctx.author.id
         user_itens = await user_inventory(self, user_id, 'get', [str(opt)])
@@ -705,6 +828,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
 
         if not items:
             return await ctx.send("Não encontrei um item com esse id.")
+
         emb = discord.Embed(
             title="Itens", description="Aqui estão listados todos os itens cadastrados.").color = 0x006400
 
@@ -712,7 +836,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         for i, value in enumerate(items):
             items_.append(items[1])
 
-        await ctx.send(items)
+        await ctx.send(items_)
 
 
 async def setup(bot: commands.Bot) -> None:

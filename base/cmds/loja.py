@@ -4,19 +4,19 @@ import discord
 import requests
 import shutil
 import ast
-import datetime
 
 from base.utilities import utilities
 from base.views import Paginacao, SimpleModalWaitFor as cItemModal
 from base.functions import (
-    get_userAvatar_func as getUserAvatar, user_inventory, print_progress_bar as progress)
+    get_userAvatar_func as getUserAvatar, 
+    user_inventory, 
+    print_progress_bar as progress, 
+    error_delete_after)
 
-from discord import File as dFile
-from discord import Interaction
-from discord import app_commands
+from discord import File as dFile, Interaction, app_commands
 from discord.ext import commands
 from discord.utils import format_dt
-
+from discord.app_commands.errors import AppCommandError
 
 # CLASS SHOP
 
@@ -25,11 +25,33 @@ botVar = commands.Bot
 botVar.shopItems = []
 botVar.oldImgs = []
 
+longest_cooldown = app_commands.checks.cooldown(
+    2, 300.0, key=lambda i: (i.guild_id, i.user.id))
+activity_cooldown = app_commands.checks.cooldown(
+    1, 5.0, key=lambda i: (i.guild_id, i.user.id))
+
 
 class Shop(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.db = utilities.database(self.bot.loop)
+
+    async def cog_app_command_error(
+        self, 
+        interaction: Interaction, 
+        error: AppCommandError
+    ):
+        if isinstance(
+            error, 
+            app_commands.CommandOnCooldown
+        ):
+            return await error_delete_after(interaction, error)
+        if isinstance(
+            error, 
+            app_commands.TransformerError
+        ):
+            return await interaction.response.send_message(
+                "O texto deve conter 80 caracteres ou menos, contando espaços.", ephemeral=True)
 
     def checktype_(self, type):
         match str(type).upper():
@@ -45,6 +67,7 @@ class Shop(commands.Cog):
                 itype = 'badge'
         return itype
 
+    @activity_cooldown
     @app_commands.command(name='cbanners')
     async def createBanners(self, interaction) -> None:
 
@@ -143,6 +166,7 @@ class Shop(commands.Cog):
         except Exception as i:
             return i
 
+    @activity_cooldown
     @app_commands.command(name='citem')
     async def citem(self, interaction) -> None:
         """Test command to wait for input. This will trigger a modal."""
@@ -166,8 +190,10 @@ class Shop(commands.Cog):
 
         await wait_modal.interaction.response.send_message(res)
 
+    #@activity_cooldown
     @app_commands.command(name='comprar')
-    async def comprar(self, interaction: discord.Interaction, item_id: int) -> None:
+    async def comprar(self, interaction: Interaction, item_id: int) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
         # await ctx.message.delete()
         item = await self.db.fetch("""
             SELECT item_type_id, value, type_, lvmin, name FROM itens 
@@ -175,6 +201,7 @@ class Shop(commands.Cog):
                     SELECT id FROM shop WHERE id=(%s)
                 )
             """ % (item_id, ))
+
         if not item:
             return await interaction.response.send_message(
                 f"{interaction.user.mention}, ou não existe um item com esse número(ID) "
@@ -187,27 +214,28 @@ class Shop(commands.Cog):
         # print (ivent_key_name)
 
         # GET ITENS FROM WITH SPECIFIC KEY
-        user_itens = await user_inventory(self, interaction.user.id, 'get', [str(ivent_key_name)])
+        user_itens = await user_inventory(self, interaction.user.id, 'get', str(ivent_key_name), item_id_uui)
         # user_itens = await user_inventory(self, interaction.user.id, 'add', [str(ivent_key_name)], [int(item_id)])
-
         # RETURN IF HAS IT ALREADY
         if ivent_key_name == "Badge":
             for i in user_itens:
-                print(i[1])
                 if str(item_id) in i[1]:
-                    return await interaction.response.send_message("Você já tem esse item.", ephemeral=True)
+                    return await interaction.followup.send("Você já tem esse item.", ephemeral=True)
                 else:
                     pass
-
+        elif ivent_key_name == "Banner":
+            for i in user_itens:
+                if i[0] and str(i[0]) == str(item_id_uui):
+                    return await interaction.followup.send("Você já tem esse item.", ephemeral=True)
         else:
             if str(item_id) in user_itens[0][1]:
-                return await interaction.response.send_message("Você já tem esse item.", ephemeral=True)
+                return await interaction.followup.send("Você já tem esse item.", ephemeral=True)
 
         user_info = await self.db.fetch(f"""
             SELECT spark, rank, iventory_id FROM users WHERE id=('{interaction.user.id}')
         """)
         if not user_info:
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "Usuário não encontrado na database", ephemeral=True
             )
         spark, rank, iventory_id = user_info[0][0], user_info[0][1], user_info[0][2]
@@ -218,27 +246,28 @@ class Shop(commands.Cog):
             item_value = 0
 
         if spark < item_value:
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "Você não tem sparks o suficiênte para comprar este item. D:", ephemeral=True
             )
         if int(rank) < int(item_lvmin):
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "Você não tem nível o bastante para comprar este item. D:", ephemeral=True
             )
-        l = await user_inventory(self, interaction.user.id, 'add', [str(ivent_key_name)], [item_id_uui])
+        l = await user_inventory(self, interaction.user.id, 'add', str(ivent_key_name), item_id_uui)
 
-        getSpark = await self.db.fetch("""
-            UPDATE users SET spark = (spark - %s) WHERE id = ('%s') RETURNING spark
-        """ % (item_value, interaction.user.id, )
+        getSpark = await self.db.fetch(
+            """
+                UPDATE users SET spark = (spark - %s) WHERE id = (\'%s\') RETURNING spark
+            """ % (int(item_value), interaction.user.id, )
         )
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "Você comprou %s! \n%s sparks foram descontados de sua carteira e você agora tem %s. " % (
                 item_name if item_type != "Badge" else f"Badge {item_name}", item_value, getSpark[0][0]), ephemeral=True)
 
-    #   Equipar
+    @activity_cooldown
     @app_commands.command(name='equipar')
-    async def equipar(self, interaction: discord.Interaction, item_id: int):
+    async def equipar(self, interaction: Interaction, item_id: int):
         item = await self.db.fetch("""
             SELECT item_type_id, type_, name, group_ FROM itens WHERE id=(%s)
             
@@ -294,15 +323,18 @@ class Shop(commands.Cog):
                                                      "equipada" if type_.endswith('a') else "equipado"), ephemeral=True)
 
     @equipar.error
-    async def equipar_error(self, interaction: discord.Interaction, error):
+    async def equipar_error(self, interaction: Interaction, error):
         if isinstance(error, commands.BadArgument):
             await interaction.response.send_message("```Esse item não existe.```", ephemeral=True)
-        if isinstance(error, commands.MissingRequiredArgument):
+        elif isinstance(error, commands.MissingRequiredArgument):
             await interaction.response.send_message("```Você não tem esse item.```", ephemeral=True)
+        else:
+            pass
 
     #   Equipar
+    @activity_cooldown
     @app_commands.command(name='desequipar')
-    async def desequipar(self, interaction: discord.Interaction, item_id: int):
+    async def desequipar(self, interaction: Interaction, item_id: int):
         item = await self.db.fetch("""
             SELECT item_type_id, type_, name, group_ FROM itens WHERE id=(%s)
             
@@ -354,11 +386,19 @@ class Shop(commands.Cog):
         else:
             await interaction.response.send_message("%s %s %s!" %
                                                     (type_.title(), name, "deequipada" if type_.endswith('a') else "equipado"), ephemeral=True)
+    @desequipar.error
+    async def desequipar_error(self, interaction: Interaction, error):
+        if isinstance(error, commands.BadArgument):
+            await interaction.response.send_message("```Esse item não existe.```", ephemeral=True)
+        elif isinstance(error, commands.MissingRequiredArgument):
+            await interaction.response.send_message("```Você não tem esse item.```", ephemeral=True)
+        else:
+            pass
 
     #   LOJAs
-    @app_commands.checks.cooldown(1, 30.0, key=lambda i: (i.guild_id, i.user.id))
+    @activity_cooldown
     @app_commands.command(name='loja')
-    async def loja(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
+    async def loja(self, interaction: Interaction, member: discord.Member = None) -> None:
         uMember = member
         if not uMember:
             uMember = interaction.user or interaction.guild.get_member(
@@ -433,16 +473,6 @@ class Shop(commands.Cog):
         await interaction.followup.send(file=dFile(rf'{pages[0]}'), view=view, ephemeral=True)
         out = interaction.edit_original_response
         view.response = out
-
-    @loja.error
-    async def loja_error(self, interaction, error):
-        if isinstance(error, commands.CommandOnCooldown):
-            await interaction.response.send_message(
-                "%s você poderá usar este comando de novo."
-                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
-        else:
-            await interaction.response.send_message(error, delete_after=5)
-
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Shop(bot))

@@ -1,30 +1,19 @@
 import asyncpg
-import asyncio
 import json
 import requests
 import os
 import uuid
 import sys
-import time
 
 from io import BytesIO
 from lib2to3.pytree import convert
-from typing import Any, Dict, List, Optional
-from PIL import Image, ImageColor, ImageDraw, ImageFilter, ImageFont, ImageOps
+from typing import Any, Optional
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 from base.struct import Config
 from base.db.pgUtils import print_psycopg2_exception as pycopg_exception
 
 import line_profiler
 
-import math
-
-# import the error handling libraries for psycopg2
-from psycopg2 import OperationalError, errorcodes, errors
-
-# import the psycopg2 library's __version__ string
-from psycopg2 import __version__ as psycopg2_version
-
-from uuid import UUID
 import logging
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
@@ -36,7 +25,7 @@ logger = logging.getLogger(__name__)
 # * https://stackoverflow.com/questions/36588126/uuid-is-not-json-serializable#:~:text=import%20json%0Afrom%20uuid%20import%20UUID%0A%0A%0Aclass%20UUIDEncoder(json.JSONEncoder)%3A%0A%20%20%20%20def%20default(self%2C%20obj)%3A%0A%20%20%20%20%20%20%20%20if%20isinstance(obj%2C%20UUID)%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20%23%20if%20the%20obj%20is%20uuid%2C%20we%20simply%20return%20the%20value%20of%20uuid%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20obj.hex%0A%20%20%20%20%20%20%20%20return%20json.JSONEncoder.default(self%2C%20obj)
 class UUIDEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, UUID):
+        if isinstance(obj, uuid.UUID):
             # if the obj is uuid, we simply return the value of uuid
             return obj.hex
         return json.JSONEncoder.default(self, obj)
@@ -94,9 +83,7 @@ class Database:
                     await conn.execute("""
                             CREATE DATABASE %(db)s
                         """ % {'db': self.cfg.dbName})
-                    await conn.execute("""
-                        CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"
-                    """)
+                    await conn.execute('CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" ')
                 except Exception as i:
                     print(i)
 
