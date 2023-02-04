@@ -6,8 +6,8 @@ config.json
 .pytest_cache
 .idea
 base/utilities.txt
+base/cmds/__pycache__
 base/__pycache__
-cmds/__pycache__
 base/db/__pycache__
 profile_output.txt
 __pycache__/bot.cpython-310.pyc
