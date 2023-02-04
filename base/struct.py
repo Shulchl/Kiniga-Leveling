@@ -46,6 +46,7 @@ class Config:
         self.chat_creators = cfg['chat_creators'] # CANAL EXCLUSIVO DE AUTORES
         self.chat_release = cfg['chat_release'] # CANAL EM QUE SERÃO ENVIADOS OS CAPÍTULOS RECENTES
 
-        self.acept_channel = cfg['acept_channel'] # CANAL EM QUE SERÁ ENVIADO OSS PROJETOS ACEITOS 
-        self.refuse_channel = cfg['refuse_channel'] # CANAL EM QUE SERÁ ENVIADO OSS PROJETOS RECUSADOS
+        self.publish_c = cfg['publish_channel'] # CANAL EM QUE SERÁ ENVIADO OS PROJETOS ACEITOS 
+        self.refuse_c = cfg['refuse_channel'] # CANAL EM QUE SERÁ ENVIADO OS PROJETOS RECUSADOS
+        self.trello_l_c = cfg['trello_log_channel'] # CANAL EM QUE SERÁ ENVIADO O LOG DO TRELLO 
     

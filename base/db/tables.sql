@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE IF NOT EXISTS public.setup (
     id integer PRIMARY KEY, 
     guild text COLLATE pg_catalog."default" NOT NULL UNIQUE,
