@@ -12,25 +12,28 @@ import aiohttp
 import random
 import requests
 import asyncpg
-import numpy as np
-import asyncpg
 import json
 import sys
 import datetime
+import time
+import ast
 
 from io import BytesIO
 from urllib.request import urlopen
-from typing import Optional, Literal
+from typing import Optional, Literal, Dict, Union, List
 from bs4 import BeautifulSoup
 
 from base.struct import Config
 from base.utilities import utilities
 from base.db.pgUtils import print_psycopg2_exception as pycopg_exception
 
+from asyncpg.pgproto.pgproto import UUID
+
 from discord.utils import format_dt
 
+from bot import log
 
-__all__ = ['Functions']
+__all__ = []
 
 
 def __init__(self, bot) -> None:
@@ -39,6 +42,7 @@ def __init__(self, bot) -> None:
 
     with open('config.json', 'r') as f:
         self.cfg = Config(json.loads(f.read()))
+        f.close()
 
 
 def print_progress_bar(index, total, label):
@@ -49,11 +53,15 @@ def print_progress_bar(index, total, label):
         f"[{'=' * int(n_bar * progress):{n_bar}s}] {int(100 * progress)}%  {label}")
     sys.stdout.flush()
 
+
 async def error_delete_after(interaction, error):
     return await interaction.response.send_message(
-            content="%s você poderá usar este comando de novo." % format_dt(datetime.datetime.now() + 
-                datetime.timedelta(seconds=error.retry_after), 'R'),
-            delete_after=int(error.retry_after)-1)
+        content="%s você poderá usar este comando de novo." % format_dt(
+            datetime.datetime.now() +
+            datetime.timedelta(seconds=error.retry_after),
+            'R'),
+        delete_after=int(error.retry_after) - 1)
+
 
 def convert(time):
     """
@@ -144,8 +152,8 @@ async def starterRoles(self, msg):
                 'g': int(z[1]),
                 'b': int(z[2]),
                 'roleid': str(rankRole.id),
-                'badges': 'src/imgs/badges/rank/%s.png' % (imgPathName, ),
-                'imgxp': 'src/imgs/molduras/molduras-perfil/xp-bar/%s.png' % (imgPathName, ), })
+                'badges': 'src/imgs/badges/rank/%s.png' % (imgPathName,),
+                'imgxp': 'src/imgs/molduras/molduras-perfil/xp-bar/%s.png' % (imgPathName,), })
 
             # await self.db.fetch("""
             #    INSERT INTO ranks
@@ -157,7 +165,7 @@ async def starterRoles(self, msg):
 
         except Exception as o:
             await msg.channel.send(f"`{o}`")
-            raise
+            raise (o)
         else:
             print_progress_bar(
                 i, len(classes), " progresso de classes criadas")
@@ -206,8 +214,7 @@ async def starterItens(self):
                     ) ON CONFLICT (name) DO NOTHING
                 """ % {'name': item_name, 'item': item, })
             except Exception as o:
-                print(o)
-                raise
+                raise (o)
             else:
                 print_progress_bar(
                     i, len(molduras), " progresso de classes criadas")
@@ -235,8 +242,7 @@ async def starterItens(self):
                     ON CONFLICT (name) DO NOTHING 
                 """ % {'name': item_name, 'item': item, })
             except Exception as o:
-                print(o)
-                raise
+                raise (o)
             else:
                 print_progress_bar(
                     i, len(banners), " progresso de banners criadas")
@@ -249,6 +255,42 @@ async def starterItens(self):
             insert into badges(name, img, lvmin) select name, img_bdg, lvmin from molds on conflict (name) do nothing;
         """)
         print("Todas as badges foram criadas")
+
+        # UTILIZAVEIS
+        boost_path = "src/imgs/utilizaveis/boost"
+        for i, file in enumerate(os.path.abspath(boost_path)):
+            if file.endswith('.png'):
+                await self.db.execute(
+                    """
+                        INSERT INTO utilizaveis (
+                            name, 
+                            img, 
+                            value
+                        ) VALUES (
+                            file[:-4],
+                            os.path.join(boost_path, file),
+                            90000 * ((i+1)*2)
+
+                        ) ON CONFLICT name DO NOTHING
+
+                    """
+                )
+                print("Item %s criado." % (file[:-4]))
+
+        # CONSUMABLE ITENS
+        consummable_path = "src/imgs/utilizaveis"
+        for i, file in enumerate(os.path.abspath(boost_path)):
+            if file.endswith('.png'):
+                await self.db.execute(
+                    """
+                        INSERT INTO utilizaveis (
+                            name, canbuy, value, img
+                        ) VALUES (
+                            '%s', %s, %s, '%s'
+                        ) ON CONFLICT name DO NOTHING
+                    """ % (file[:-4], True, 15000, os.path.join(consummable_path, file))
+                )
+                print("Item consumível %s criado." % (file[:-4]))
 
         # TITULOS NÃO SÃO MAIS SUPORTADOS
 
@@ -276,9 +318,13 @@ async def starterItens(self):
             pycopg_exception(err)
 
 
-async def get_roles(member: discord.Member, guild, roles=[
-    855117820814688307
-]):
+async def get_roles(
+        member: discord.Member,
+        guild,
+        roles=[
+            855117820814688307
+        ]
+):
     # roles = [943171518895095869,
     #    943174476839936010,
     #    943192163947274341,
@@ -310,8 +356,8 @@ def saveImage(url, fpath):
         f = open(fpath, 'w')
         os.path.splitext(f.write(contents.read()))
         f.close()
-    except Exception:
-        raise
+    except Exception as o:
+        raise (o)
 
 
 async def get_userBanner_func(self, member: discord.Member):
@@ -322,7 +368,7 @@ async def get_userBanner_func(self, member: discord.Member):
         banner_id = req["banner"]
         return BytesIO(requests.get(
             f"https://cdn.discordapp.com/banners/{uMember.id}/{banner_id}?size=2048")
-            .content).getvalue()
+                       .content).getvalue()
 
 
 async def get_userAvatar_func(member: discord.Member):
@@ -339,212 +385,438 @@ def banner_image_choose():
 
 
 async def get_iventory(self, memberId):
-    id = await self.db.fetchrow("""
-        SELECT itens::jsonb FROM iventory WHERE iventory_id=(
-                SELECT iventory_id FROM users WHERE id = ('%s')
-        )
-    """ % (memberId, )
-    )
-    return id[0][0]
+    start_time = time.time()
+
+    items_ids_ = []
+
+    try:
+        rows = await self.db.fetch("""
+            SELECT * FROM jsonb_each_text(
+                (
+                    SELECT itens::jsonb FROM iventory
+                    WHERE iventory_id=(
+                        SELECT iventory_id FROM users WHERE id = ('%s')
+                    )
+                )
+            );
+        """ % (memberId,)
+                                   )
+        item_ids = []
+        if rows:
+            # transform item_type | item_groups_and_ids in list 
+            items_list = [[i[0], i[1]] for i in rows]
+            for row in items_list:
+                items_key = row[0]
+                items_value_ids = ast.literal_eval(row[1])
+                list_value = []
+                # separate groups ans keys
+                for key, value in items_value_ids.items():
+                    if key != 'ids':
+                        value = ast.literal_eval(str(value))
+
+                    # print(check_value_type)
+                    # print(type(check_value_type))
+                    for k, v in value.items():
+
+                        new_value = None
+
+                        if k == 'ids':
+                            new_value = v
+                        else:
+                            new_value = value
+
+                        if not new_value:
+                            continue
+
+                        list_value.append(new_value)
+
+                item_ids.append([items_key, ast.literal_eval(str(list_value))])
+
+        print(time.time() - start_time, flush=True)
+        return item_ids
+
+    except Exception as e:
+        raise e
 
 
+def checktype_(type):
+    match str(type).upper():
+        case "MOLDURA":
+            itype = 'molds'
+        case "BANNER":
+            itype = 'banners'
+        case "CARRO":
+            itype = 'cars'
+        case "BADGE":
+            itype = 'badges'
+        case "UTILIZAVEL":
+            itype = 'utilizaveis'
+
+    return itype
+
+## DO NOT USE
 async def user_inventory(
-    self, 
-    member, 
-    opt: Optional[
-        Literal[
-            "get", "remove", "add"
-        ]
-    ], 
-    iventory_key = None, 
-    newValue = None
+        self,
+        member,
+        opt: Optional[
+            Literal[
+                "remove", "add"
+            ]
+        ],
+        iventory_key=None,
+        newValue=None
 ):
+    #
+    #   ADICIONA/REMOVE ITENS E QUANTIDADES
+    #   iventory_key: str = TIPO DO ITEM  (EX: Badge, Moldura, Banner)
+    #   newValue: str(uuid) = ID VERDADEIRO DO ITEM
+    #
+
+    sys.stdout.flush()
     res = ""
     itensId = newValue
     if isinstance(itensId, list):
         itensId = [i for i in itensId]
-    
-    iventoryId = await self.db.fetch("SELECT iventory_id FROM users WHERE id = (\'%s\')" % (member, ))
+
+    iventoryId = await self.db.fetch("SELECT iventory_id FROM users WHERE id = (\'%s\')" % (member,))
     if iventoryId:
         iventoryId = iventoryId[0][0]
 
-    if iventory_key is not None:
-        itens = [f"itens::jsonb->'{i}'" for i in iventory_key]
-        itens = ",".join(itens)
-    else:
-        itens = "itens::jsonb"
-
-    if opt == "get":
-        
-        if iventory_key in ["Badge", "Moldura"]:
-            res = await self.db.fetch("""
-                    SELECT * FROM jsonb_each_text(
-                        (
-                            SELECT %s FROM iventory
-                            WHERE iventory_id=(\'%s\')
-                        )
-                    );
-                """ % (str(itens), iventoryId, )
-            )
-        elif iventory_key == "Banner":
-            try:
-                res = await self.db.fetch(
-                    """
-                        SELECT itens::jsonb->'Banner'->'ids'->\'%s\' as %s_item FROM iventory
-                        WHERE iventory_id=(\'%s\')
-                    """ % ( 
-                        itensId, 
-                        iventory_key, 
-                        iventoryId, 
-                    )
-                )
-            except Exception as err:
-                print(err)
-        else:
-            res = await self.db.fetch(
-                """
-                    SELECT * FROM jsonb_each_text(
-                        (
-                            SELECT %s FROM iventory WHERE iventory_id=(\'%s\')
-                        )
-                    )
-                        
+    item_find = checktype_(iventory_key)
+    is_badge_mold = False
+    item_group = ''
+    if iventory_key == 'Badge' or iventory_key == 'Moldura':
+        item_group = await self.db.fetch(
+            """
+                    SELECT group_ FROM %s WHERE id=(\'%s\')
                 """ % (
-                    str(itens),
-                    iventoryId, )
-                )
-
-    elif opt == "remove":
-        res = await self.db.fetch("""
-            SELECT to_jsonb(
-                SELECT %s FROM iventory WHERE iventory_id=(\'%s\')
+                item_find,
+                itensId,
             )
-            - '%s'::jsonb
-        
-        """ % (str(itens), iventoryId, newValue)
         )
-    elif opt == "add":
+        item_group = str(item_group[0][0])
+        is_badge_mold = True
 
-        if iventory_key == 'Badge' or iventory_key == 'Moldura':
-            if iventory_key[0] == 'Badge':
-                item_find = 'badges'
-            elif iventory_key[0] == 'Moldura':
-                item_find = 'molds'
-            else:
-                item_find = iventory_key[0]
-            # Get banner group
-            try:
-                item_group = await self.db.fetch(
+    try:
+
+        if opt == "remove":
+            res = 'remove'
+            if iventory_key == 'Badge' or iventory_key == 'Moldura':
+                # REMOVE 1 UNIDADE DO ITEM
+                # REMOVE 1 UNIDADE DO ITEM
+                await self.db.fetch(
                     """
-                        SELECT group_ FROM %s WHERE id=(\'%s\')
-                    """ % (
-                        item_find if item_find == "Badge" else item_find, itensId, 
-                    )
-                )
-                res = await self.db.fetch("""
-                    UPDATE iventory SET itens = (
-                        SELECT jsonb_insert(
-                            
+                        UPDATE iventory SET itens = jsonb_set(
                             itens::jsonb,
-                            '{%s, %s, %s}',
-                            '1',
-                            true
-                        )
-                    ) WHERE iventory_id=('%s')
-
-                    RETURNING itens::jsonb;
-                """ % (iventory_key, item_group[0][0], itensId, iventoryId)
-                )
-            except Exception as error:
-                if (isinstance(error, AttributeError)):
-                    res = await self.db.fetch("""
-                        UPDATE iventory SET itens = (
-                            SELECT jsonb_set(
-                                itens::jsonb,
-                                '{%(i)s, %(iGoup)s, %(iID)s}'::text[],
-                                (SELECT 
+                            '{%(iKEY)s, %(iGROUP)s, ids, %(iID)s}'::text[],
+                            (
+                                SELECT COALESCE(
                                     (
                                         SELECT CAST(
-                                            itens::jsonb->'%(i)s'->'%(iGoup)s'->'%(iID)s' as INTEGER
-                                        ) + 1 as %(i)s_rank FROM iventory 
-                                        WHERE iventory_id=('%(iINV)s')
-                                    )::text
-
-                                )::jsonb,
-                                true
-                            )
-                        ) WHERE iventory_id=(
-                            '%(iINV)s'
+                                            itens::jsonb->\'%(iKEY)s\'->'%(iGROUP)s'->'ids'->\'%(iID)s\' as INTEGER
+                                        ) - 1  FROM iventory
+                                        WHERE iventory_id=(\'%(iINV)s\')
+                                    ), 0 
+                                )::text as _item
+                            )::jsonb,
+                            true
                         )
-
-                        RETURNING itens::jsonb;
-                    """ % {'i': iventory_key, 'iGoup': item_group[0][0], 'iID': itensId, 'iINV': iventoryId}
-                    )
-                else:
-                    raise error
-
-        else:
-            try:
-                res = await self.db.fetch(
-                    """
-                        UPDATE iventory SET itens = (
-                            SELECT jsonb_insert(
-                                itens::jsonb,
-                                \'{%(i)s, ids, %(iID)s}\'::text[],
-                                '1'::jsonb,
-                                true
-                            )
-                        ) WHERE iventory_id=(\'%(iINV)s\')
+                        WHERE iventory_id=(
+                            \'%(iINV)s\'
+                        )
                         
-                        RETURNING itens::jsonb->'%(i)s'->'%(iID)s'
                     """ % {
-                        'i': iventory_key, 
-                        'iID': itensId, 
-                        'iINV': iventoryId, 
+                        'iKEY': iventory_key,
+                        'iGROUP': item_group,
+                        'iID': itensId,
+                        'iINV': iventoryId
                     }
                 )
-            except Exception as error:
-                if (isinstance(error, AttributeError)):
-                    try:
-                        res = await self.db.fetch(
-                            """
-                                UPDATE iventory SET itens = jsonb_set(
-                                    itens::jsonb,
-                                    '{%(i)s, ids, %(iID)s}'::text[],
+
+                # REMOVE SE UANTIDADE FOR 0 
+                # (útil apenas para itens utilizáveis/consumíveis)
+                try:
+                    print("Tentando pegar valores zerados...")
+                    null_values = await self.db.fetch(
+                        """
+                            SELECT * FROM (
+                                SELECT 
+                                    iventory_id,
+                                    (jsonb_each_text(itens::jsonb->'%(iKEY)s'->\'%(iGROUP)s\'->'ids')).* 
+                                FROM
+                                    iventory t
+                            ) denormalized_values
+                            WHERE VALUE < '1' and iventory_id = \'%(iINV)s\'
+                        """ % {
+                            'iKEY': iventory_key,
+                            'iGROUP': item_group,
+                            'iINV': iventoryId
+                        }
+                    )
+                    # print(null_values)
+                except Exception as e:
+                    print(e)
+                # print(', '.join(["{%s, %s, %s}" % (iventory_key, 'ids', n[1]) for n in null_values]))
+
+                print("{%s, %s, %s, %s}" % (iventory_key, item_group, 'ids', n[1]) for n in null_values)
+                try:
+                    t = ["{%s, %s, %s, %s}" % (iventory_key, item_group, 'ids', n[1]) for n in null_values]
+                    t = ', '.join(t)
+                    print(t)
+                    for n in null_values:
+                        print("Tentando apagar valores zerados...")
+                        query = "SELECT itens::jsonb " + "#-" + " '{%(iKEY)s}'::text[] FROM iventory WHERE iventory_id = ('%(iINV)s')" % {
+                            'oKEY': iventory_key,
+                            'iKEY': t,
+                            'iGROUP': item_group,
+                            'iINV': iventoryId
+                        }
+                        aa = await self.db.fetch(query)
+                        print(aa)
+
+                    print("Feito.")
+                except Exception as e:
+                    print(e)
+
+
+            else:
+                # REMOVE 1 UNIDADE DO ITEM
+                await self.db.fetch(
+                    """
+                        UPDATE iventory SET itens = jsonb_set(
+                            itens::jsonb,
+                            '{%(iKEY)s, ids, %(iID)s}'::text[],
+                            (
+                                SELECT COALESCE(
                                     (
-                                        SELECT COALESCE(
-                                            (
-                                                SELECT CAST(
-                                                    itens::jsonb->\'%(i)s\'->'ids'->\'%(iID)s\' as INTEGER
-                                                ) + 1  FROM iventory
-                                                WHERE iventory_id=(\'%(iINV)s\')
-                                            ), 0 
-                                        )::text as %(i)s_rank
-                                    )::jsonb,
-                                    true
-                                )
-                                WHERE iventory_id=(
-                                    \'%(iINV)s\'
-                                )
-                                
-                                RETURNING itens::jsonb->'%(i)s'->'ids'
-                            """ % {
-                                'i': iventory_key, 
-                                'iID': itensId, 
-                                'iINV': iventoryId, 
-                            }
+                                        SELECT CAST(
+                                            itens::jsonb->\'%(iKEY)s\'->'ids'->\'%(iID)s\' as INTEGER
+                                        ) - 1  FROM iventory
+                                        WHERE iventory_id=(\'%(iINV)s\')
+                                    ), 0
+                                )::text as _item
+                            )::jsonb,
+                            true
                         )
-                        print(res)
-                    except Exception as a:
-                        print(a)
-                else:
-                    print (error)
-                print("\n\nDeu certo.\nEu acho....\n\n")
+                        WHERE iventory_id=(
+                            \'%(iINV)s\'
+                        )
+                    """ % {
+                        'iKEY': iventory_key,
+                        'iGROUP': item_group,
+                        'iID': itensId,
+                        'iINV': iventoryId
+                    }
+                )
+
+                # REMOVE SE UANTIDADE FOR 0 
+                # (útil apenas para itens utilizáveis/consumíveis)
+                try:
+                    print("Tentando pegar valores zerados...")
+                    null_values = await self.db.fetch(
+                        """
+                            SELECT * FROM (
+                                SELECT 
+                                    iventory_id,
+                                    (jsonb_each_text(itens::jsonb->'%(iKEY)s'->'ids')).* 
+                                FROM
+                                    iventory t
+                            ) denormalized_values
+                            WHERE VALUE < '1' and iventory_id = \'%(iINV)s\'
+                        """ % {
+                            'iKEY': iventory_key,
+                            'iGROUP': item_group,
+                            'iINV': iventoryId
+                        }
+                    )
+                    print(null_values)
+                except Exception as e:
+                    print(e)
+                # print(', '.join(["{%s, %s, %s}" % (iventory_key, 'ids', n[1]) for n in null_values]))
+                print((tuple("{%s, %s, %s, %s}") % (iventory_key, item_group, 'ids', n[1]) for n in null_values))
+                try:
+                    t = ["{%s, %s, %s}" % (iventory_key, 'ids', n[1]) for n in null_values]
+                    t = ', '.join(t)
+                    for n in null_values:
+                        print("Tentando apagar valores zerados...")
+                        query = "SELECT itens::jsonb" + " #- " + "'{%(iKEY)s}'::text[] FROM iventory WHERE iventory_id = ('%(iINV)s')" % {
+                            'iKEY': t,
+                            'iINV': iventoryId
+                        }
+                        aa = await self.db.fetch(query)
+                        print(aa)
+
+                    print("Feito.")
+                except Exception as e:
+                    print(e)
+
+        elif opt == "add":
+            if iventory_key == 'Badge' or iventory_key == 'Moldura':
+                res = await self.db.fetch(
+                    """
+                        UPDATE iventory SET itens = jsonb_set(
+                            itens::jsonb,
+                            '{%(i)s, %(iGROUP)s, ids, %(iID)s}'::text[],
+                            (
+                                SELECT COALESCE(
+                                    (
+                                        SELECT CAST(
+                                            itens::jsonb->\'%(iKEY)s\'->'%(iGROUP)s'->'ids'->\'%(iID)s\' as INTEGER
+                                        ) + 1  FROM iventory
+                                        WHERE iventory_id=(\'%(iINV)s\')
+                                    ), 0 
+                                )::text as _item
+                            )::jsonb,
+                            true
+                        )
+                        WHERE iventory_id=(
+                            \'%(iINV)s\'
+                        )
+
+                    """ % {
+                        'iKEY': iventory_key,
+                        'iGROUP': item_group,
+                        'iID': itensId,
+                        'iINV': iventoryId
+                    }
+                )
+
+            else:
+                res = await self.db.fetch(
+                    """
+                        UPDATE iventory SET itens = jsonb_set(
+                            itens::jsonb,
+                            '{%(i)s, ids, %(iID)s}'::text[],
+                            (
+                                SELECT COALESCE(
+                                    (
+                                        SELECT CAST(
+                                            itens::jsonb->\'%(iKEY)s\'->'ids'->\'%(iID)s\' as INTEGER
+                                        ) + 1  FROM iventory
+                                        WHERE iventory_id=(\'%(iINV)s\')
+                                    ), 0 
+                                )::text as _item
+                            )::jsonb,
+                            true
+                        )
+                        WHERE iventory_id=(
+                            \'%(iINV)s\'
+                        )
+
+                    """ % {
+                        'iKEY': iventory_key,
+                        'iID': itensId,
+                        'iINV': iventoryId
+                    }
+                )
+    except Exception as a:
+        raise a
 
     return res
+
+
+## -------
+## USE THIS ONE INSTEAD
+async def inventory_update_key(self, user_inventory_id, group, sub_group: Optional[Literal[str]], item_id: str,
+                               purpose: Optional[Literal['buy', 'use', 'show']],
+                               increment: Optional[Literal[0, 1]]) -> str:
+    """
+    user_inventory_id:
+        the id (uuid) of the user's inventory
+    group:
+        the first key in the JSON structure where the new key should be added
+    sub_group:
+        the sub-key inside the first key where the new key should be added, or 'ids' if the new key should be added directly to the ids sub-key
+    item_id:
+        the UUID of the new key
+    purpose:
+        optional / choose if the action to buy the item or to use it, 
+        so it doesn't mix and add an item when the user is triyng to use
+        smt he doesn't have
+    increment:
+        1 if the item should be incremented, else 0 if it must be removed
+    """
+    if not sub_group:
+        sub_group = 'ids'
+
+    if item_id:
+        if isinstance(item_id, UUID):
+            item_id = str(item_id)
+
+    try:
+        # Define the query to fetch the current data for the group
+        result = await self.db.fetchrow(
+            "SELECT itens::json FROM iventory WHERE iventory_id = \'%s\' FOR UPDATE" % (user_inventory_id))
+        data = ast.literal_eval(result[0])
+        print(data, flush=True)
+        if purpose == 'show':
+            return data
+        if group not in data:
+            print("inside if", flush=True)
+            data[group] = {}
+        subkeys = sub_group.split('.')
+
+        current_subkey = data[group]
+        print(current_subkey, flush=True)
+
+        if group in ['Moldura', 'Badge']:
+            for subkey in subkeys[:-1]:
+                if subkey not in current_subkey:
+                    current_subkey[subkey] = {"ids": {}}
+                current_subkey = current_subkey[subkey]
+                if subkey != "ids":
+                    current_subkey = current_subkey["ids"]
+                    if item_id in current_subkey:
+                        return "ITEM_ALREADY_EXISTS"
+        else:
+            current_subkey = current_subkey[subkeys[-1]]
+
+        print(current_subkey, flush=True)
+
+        # if subkeys[-1] != "ids": # and group == 'Utilizavel' or 'Carro'
+        #    if subkeys[-1] not in current_subkey:
+        #        current_subkey[subkeys[-1]] = {"ids": {}}
+        #    current_subkey = current_subkey[subkeys[-1]]
+
+        # if "ids" not in current_subkey:
+        #     current_subkey = {}
+        print(current_subkey.get(item_id), flush=True)
+        if uuid_value := current_subkey.get(item_id):
+            print(uuid_value, flush=True)
+            if increment is None:  # or group not in ['Utilizavel', 'Carro']
+                return "ITEM_ALREADY_EXISTS"
+
+            current_subkey[item_id] = (uuid_value + increment) if increment == 1 else (uuid_value - 1)
+            print("aaa", flush=True)
+            print(current_subkey, flush=True)
+
+            if current_subkey[item_id] == 0:
+                del current_subkey[item_id]
+
+            print(current_subkey, flush=True)
+        else:
+            # IF IT DONT EXIST
+            if purpose == 'buy':
+                print(type(item_id), flush=True)
+                current_subkey[item_id] = 1
+            elif purpose == 'use':
+                if item_id not in current_subkey:
+                    return "ITEM_DONT_EXISTS"
+
+        data = json.dumps(data)
+        print(data, flush=True)
+        await self.db.execute(
+            "UPDATE iventory SET itens = \'%s\' WHERE iventory_id = \'%s\'" % (str(data), user_inventory_id))
+
+        return "ITEM_ADDED_SUCCESSFULLY"
+
+    except Exception as f:
+        print(repr(f), flush=True)
+
+
+## -------
+
 # FUNÇÕES DE NOVO AUTOR
-
-
 async def sendEmb(user, author):
     try:
         # to author
@@ -553,17 +825,18 @@ async def sendEmb(user, author):
                                             "no site e à quem recorrer para você não ficar perdido caso precise de ajuda.",
                                 color=0x00ff33).set_author(name="Kiniga Brasil",
                                                            url='https://kiniga.com/',
-                                                           icon_url='https://kiniga.com/wp-content/uploads/fbrfg/favicon-32x32.png').set_footer(text='Espero que seja muito produtivo escrevendo!')
+                                                           icon_url='https://kiniga.com/wp-content/uploads/fbrfg/favicon-32x32.png').set_footer(
+            text='Espero que seja muito produtivo escrevendo!')
         # creators
         creators = discord.Embed(title='Clique aqui para ir ao canal dos criadores.',
                                  description='Lá, você poderá encontrar, nas mensagens fixadas, todas as informações necessárias'
-                                 ' para a publicação de novos capítulos.',
+                                             ' para a publicação de novos capítulos.',
                                  url='https://discord.com/channels/667838471301365801/694308861699686420',
                                  color=0x00ff33)
         # tags
         tags = discord.Embed(title='Clique aqui para ir ao canal das tags.',
                              description='Lá, você poderá criar uma tag com o nome da sua história. O passo a passo também '
-                             'está nas mensagens fixadas.',
+                                         'está nas mensagens fixadas.',
                              url='https://discord.com/channels/667838471301365801/831561655329751062',
                              color=0x00ff33)
         #  dúvidas
@@ -576,12 +849,14 @@ async def sendEmb(user, author):
         fixados = discord.Embed(title='Não sabe como acessar as mensagens fixadas?',
                                 description='Siga os passos da imagem abaixo.',
                                 color=0x00ff33
-                                ).set_image(url='https://media4.giphy.com/media/pURSYHBjYBEUhr04XQ/giphy.gif?cid=790b7611ecb81458c0064e87d5413028a19bfe17a95ed280&rid=giphy.gif&ct=g')
+                                ).set_image(
+            url='https://media4.giphy.com/media/pURSYHBjYBEUhr04XQ/giphy.gif?cid=790b7611ecb81458c0064e87d5413028a19bfe17a95ed280&rid=giphy.gif&ct=g')
         #  novo projeto
         newProject = discord.Embed(title='Não entendeu como criar uma tag?',
                                    description='Siga o passo a passo abaixo para entender como solicitar a criação de uma tag '
-                                   'para a sua história.',
-                                   color=0x00ff33).set_image(url='https://media0.giphy.com/media/1IY0E9XoHQ2iJeLNwx/giphy.gif?cid=790b7611ed4435131498a759f83547158e2d9029c5e9b083&rid=giphy.gif&ct=g')
+                                               'para a sua história.',
+                                   color=0x00ff33).set_image(
+            url='https://media0.giphy.com/media/1IY0E9XoHQ2iJeLNwx/giphy.gif?cid=790b7611ed4435131498a759f83547158e2d9029c5e9b083&rid=giphy.gif&ct=g')
 
         return [welcome, creators, tags, dúvidas, fixados, newProject]
 
@@ -604,7 +879,7 @@ async def checkRelease(self, interaction):
 
         return c
     except Exception as i:
-        raise i
+        raise (i)
 
 
 async def getRelease(self, interaction):
@@ -623,7 +898,7 @@ async def getRelease(self, interaction):
                     link = l['href']  # link
                     titulo = title.get_text()  # titulo da história
                     author = novel.find('div', attrs={
-                                        'class': 'author-content'}).find_all('a', href=True)[0]  # nome do autor
+                        'class': 'author-content'}).find_all('a', href=True)[0]  # nome do autor
                     # sinopse da história
                     s = novel.find(
                         'div', attrs={'class': 'summary__content'})
@@ -665,7 +940,7 @@ async def getRelease(self, interaction):
                         # print("*" * 20)
                         # print( emb.to_dict().get('url') )
                         if emb.to_dict().get('url') == oldEmb.to_dict().get('url'):
-                            return  discord.Embed(
+                            return discord.Embed(
                                 title="Ops",
                                 description="História já publicada.",
                                 color=0x00ff33).set_author(
@@ -684,7 +959,7 @@ async def getRelease(self, interaction):
                             url='https://kiniga.com/',
                             icon_url='https://kiniga.com/wp-content/uploads/fbrfg/favicon-32x32.png'
                         ).set_footer(text='Qualquer coisa, marque o Shuichi! :D')
-                    
+
                     return emb
 
                 except Exception as i:
@@ -706,12 +981,12 @@ async def getfile(message):
         try:
             fileInfo.append(
                 [attach[1].url,
-                attach[1].filename]
+                 attach[1].filename]
             )
         except Exception as err:
             fileInfo.append(
                 [attach[0].url,
-                attach[0].filename]
+                 attach[0].filename]
             )
 
     res = None
@@ -726,5 +1001,5 @@ async def getfile(message):
         res = r.text
 
     except Exception as e:
-        raise e
+        raise (e)
     return filename, res

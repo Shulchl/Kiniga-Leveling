@@ -1,7 +1,7 @@
 matplotlib
 aiohttp
 asyncpg
-discord.py
+discord.py>=2.2.0
 requests
 beautifulsoup4
 pillow>=9.3.0

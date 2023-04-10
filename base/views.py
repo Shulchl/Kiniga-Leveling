@@ -28,8 +28,12 @@ class Paginacao(View):
         self.pages = pages
         # print(self.pages)
         self.user = user
-        self.lenght = len(self.pages)-1
+        self.lenght = len(self.pages)-1 if len(self.pages) > 1 else len(self.pages)
+        print(self.lenght)
         self.children[0].disabled, self.children[1].disabled = True, True
+        if len(self.pages) == 1:
+            self.children[3].disabled, self.children[4].disabled = True, True
+        
         self.response = None
 
     async def on_timeout(self):

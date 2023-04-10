@@ -6,6 +6,7 @@ import random
 import datetime
 import os
 import ast
+import sys
 
 from asyncio import sleep as asyncsleep
 from random import randint
@@ -21,11 +22,15 @@ from discord.ext.commands.cooldowns import BucketType
 from discord.utils import format_dt
 
 from base.functions import (
-    get_roles, get_userBanner_func, get_userAvatar_func, error_delete_after)
+    get_roles, 
+    get_userBanner_func, 
+    get_userAvatar_func, 
+    error_delete_after,
+    get_iventory
+    )
 from base.utilities import utilities
 from base.struct import Config
 from base.views import Paginacao
-
 
 longest_cooldown = app_commands.checks.cooldown(
     2, 300.0, key=lambda i: (i.guild_id, i.user.id))
@@ -71,20 +76,20 @@ class User(commands.Cog):
     @app_commands.command(name='perfil', description='Monstrará informações sobre você xD')
     @app_commands.describe(member='Marque o usuário para mostrar seu nível. (opcional)')
     async def perfil(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:    
+            if member:
+                uMember = member
+            else:
+                uMember = interaction.user
 
-        if member:
-            uMember = member
-        else:
-            uMember = interaction.user
+            staff = await get_roles(uMember, interaction.guild)
 
-        staff = await get_roles(uMember, interaction.guild)
+            result = await self.db.fetch("SELECT rank, info, spark, ori, birth, iventory_id FROM users WHERE id=\'%s\'" % (uMember.id, ))
 
-        result = await self.db.fetch("SELECT rank, info, spark, ori, birth, iventory_id FROM users WHERE id=\'%s\'" % (uMember.id, ))
+            if not result:
+                return await interaction.followup.send("`%s, você ainda não tem nenhum ponto de experiência.`" % (uMember.mention, ), ephemeral=True)
 
-        if not result:
-            return await interaction.response.send_message("`%s, você ainda não tem nenhum ponto de experiência.`" % (uMember.mention, ), ephemeral=True)
-
-        try:
             userRank = result[0][0]
             userInfo = result[0][1]
             userSpark = result[0][2]
@@ -100,7 +105,7 @@ class User(commands.Cog):
 
             checkRanks = await self.db.execute('SELECT lvmin FROM ranks LIMIT 1')
             if not checkRanks:
-                return await interaction.response.send_message("`Não há nenhuma classe no momento.`")
+                return await interaction.followup.send("`Não há nenhuma classe no momento.`")
 
             ranks = await self.db.fetch("SELECT name, r, g, b FROM ranks WHERE lvmin <= %s ORDER BY lvmin DESC" % (userRank + 1 if userRank == 0 else userRank, ))
 
@@ -115,7 +120,7 @@ class User(commands.Cog):
                 rankG = None
                 rankB = None
 
-            iventory = await self.db.fetch("SELECT mold, car, banner, badge::jsonb FROM iventory WHERE iventory_id = (\'%s\')" % (userIventoryId, ))
+            iventory = await self.db.fetch("SELECT moldura, car, banner, badge::jsonb FROM iventory WHERE iventory_id = (\'%s\')" % (userIventoryId, ))
 
             mold_id = iventory[0][0]
 
@@ -139,32 +144,49 @@ class User(commands.Cog):
 
             # Pega badges equipadas
             badge_ids = iventory[0][3]
+            # print(badge_ids, flush=True)
             badge_images = []
-            if badge_ids is not None:
-                badge_rows = []
+            if badge_ids != '{}':
+                badges_values = []
                 l = ast.literal_eval(badge_ids)
                 for key, value in l.items():
-                    badge_rows.append(value)
-                if len(badge_rows) > 0:
-                    rows = await self.db.fetch("""
-                        SELECT img FROM itens WHERE item_type_id IN %s
-                    """ % (tuple(str(i) for i in badge_rows),)
-                    )
+                    badges_values.append(value)
+                badge_rows = badges_values[0]
+                if badge_rows:
+                    if len(badge_rows) > 1:
+                        print("before", flush=True)
+                        rows = await self.db.fetch(
+                            """
+                                SELECT img FROM itens WHERE item_type_id IN %s
+                            """ % (tuple(str(i) for i in badge_rows),)
+                        )
+                        print("after", flush=True)
+                    else:
+                        rows = await self.db.fetch(
+                            """
+                                SELECT img FROM itens
+                                WHERE item_type_id = \'%s\'
+                            """ % ( badge_rows[0] )
+                        )
                     for row in rows:
                         badge_images.append(row[0])
                 # return print(badge_rows[0][0])
-
-            buffer = utilities.rankcard.draw_new(
+            # print(badge_images, flush=True)
+            buffer = await self.bot.loop.run_in_executor(
+                None,
+                utilities.rankcard.draw_new,
                 str(uMember), badge_images, bannerImg,
                 moldImage, userInfo, userSpark, userOri,
                 userBirth, staff, rankName, rankR, rankG,
-                rankB, BytesIO(profile_bytes))
+                rankB, BytesIO(profile_bytes)
+            )
 
-            await interaction.response.send_message(file=dFile(fp=buffer, filename='rank_card.png'))
+            await interaction.followup.send(file=dFile(fp=buffer, filename='rank_card.png'))
         except Exception as e:
-            raise e
+            await interaction.followup.send(e)
+            raise (e)
 
-        
+
     # @longest_cooldown
 
     @activity_cooldown
@@ -199,23 +221,30 @@ class User(commands.Cog):
         d = re.sub('\\D', '', str(total))
         if int(d) > 0:
             try:
-                rankss = await self.db.fetch("""SELECT name, badges, imgxp 
-                                                    FROM ranks 
-                                                    WHERE lvmin <= %s 
-                                                    ORDER BY lvmin DESC""" % (result[0][0], ))
+                rankss = await self.db.fetch(
+                    """
+                        SELECT name, badges, imgxp 
+                        FROM ranks 
+                        WHERE lvmin <= %s 
+                        ORDER BY lvmin DESC
+                    """ % (result[0][0], )
+                )
                 if rankss:
                     moldName, moldImg, xpimg = rankss[0][0], rankss[0][1], rankss[0][2]
                 else:
                     moldName, moldImg, xpimg = None, None, None
             except Exception as e:
-                raise e
+                raise (e)
 
             try:
-                buffer = utilities.rankcard.rank(
+                buffer = await self.bot.loop.run_in_executor(
+                    None,
+                    utilities.rankcard.rank,
                     result[0][0], result[0][1], result[0][2],
-                    moldName, moldImg, xpimg, background)
+                    moldName, moldImg, xpimg, background
+                )
             except Exception as e:
-                raise e
+                raise (e)
         else:
             await interaction.followup.send('É preciso adicionar alguma classe primeiro.')
 
@@ -389,47 +418,53 @@ class User(commands.Cog):
     @activity_cooldown
     @app_commands.command(name='inv')
     async def inv(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
         try:
-            rows = await self.db.fetch("""
-                SELECT * FROM jsonb_each_text(
-                    (
-                        SELECT itens::jsonb FROM iventory 
-                        WHERE iventory_id=(
-                            SELECT iventory_id FROM users WHERE id = ('%s')
-                        )
-                    )
-                );
-            """ % (interaction.user.id,)
-            )
+            # GET ITENS FROM WITH SPECIFIC KEY
+            user_itens = await get_iventory(self, interaction.user.id)
+            print(user_itens, flush=True)
+            # APPEND ONLY ITEMS KEY
             item_ids = []
-            # return print((str(key[0]), int(value[1])) for key, value in [ast.literal_eval(row).items() for row in rows])
-            for row in rows:
-                items_key = row[0]
-                items_value = ast.literal_eval(row[1])
-                for key, value in items_value.items():
-                    if len(value) > 0:
-                        for key, value in value:
-                            item_ids.append([str(key), int(value[0])])
-            if len(item_ids) < 1:
-                return await interaction.response.send_message(
+            for items in user_itens:
+                itemsType = items[0]
+                itemsIds = items[1]
+                if not itemsIds: continue
+                for dicts in itemsIds:
+                    itemsDict = ast.literal_eval(str(dicts)) if type(dicts) is not dict else dicts
+                    for k, v in itemsDict.items():
+                        item_ids.append(k)
+
+            if not item_ids:
+                return await interaction.followup.send(
                     "`Você não tem nenhum item. Compre utilizando sparks ou oris na loja! [/loja]`")
 
-            rows = await self.db.fetch("""
-                SELECT id, name, img, img_profile, category, type_ FROM itens WHERE item_type_id IN %s
-            """ % (tuple(str(i[0]) for i in item_ids),)
-            )
+            rows = []
+            for i in item_ids:
+                rows_ = await self.db.fetch("""
+                    SELECT id, name, img, img_profile, category, type_ FROM itens WHERE item_type_id = \'%s\'
+                """ % (i)
+                )
+
+                rows.append(rows_)
             items = []
             c = 0
-            for row in rows:
-                items.append({c: {
-                    "id": str(row[0]),
-                    "name": str(row[1]),
-                    "img": str(row[2] if str(row[5]) == "Badge" else row[3]),
-                    "category": str(row[4]).replace(" ", ""),
-                    "type": str(row[5])
-                }})
-                c += 1
-                # items.append(row[0])
+            print(rows, flush=True)
+            for rows_ in rows:
+                for row in rows_:
+                    items.append({c: {
+                        "id": str(row[0]),
+                        "name": str(row[1]),
+                        "img": str(row[2]) if str(row[5]) == "Badge" or "Utilizavel" else str(row[3]),
+                        "category": str(row[4]).replace(" ", ""),
+                        "type": str(row[5])
+                    }})
+                    c += 1
+                    # items.append(row[0])
+
+            print("-*-"*20, flush=True)
+            print(items, flush=True)
+            print("-*-"*20, flush=True)
+
             user_info = await self.db.fetch("""
                 SELECT banner as eqp_banner, spark as Spark, ori as Ori
                     FROM iventory, users
@@ -452,21 +487,30 @@ class User(commands.Cog):
 
                 banner, spark, ori = banner_img, user_info[0][1], user_info[0][2]
 
-            async with interaction.channel.typing():
-                pages = utilities.rankcard.drawiventory(
-                    banner, spark, ori, items, c)
-                pages = [os.path.join('./_temp/', i) for i in pages]
-                #view = None
-                # if len(pages) > 1:
-                view = Paginacao(pages, 60, interaction.user)
-            await interaction.response.send_message(file=dFile(rf'{pages[0]}'),
-                                                    view=view, ephemeral=True)
+            print("Tentando gerar páginas...", flush=True)
+
+            pages = await self.bot.loop.run_in_executor(
+                None,
+                utilities.rankcard.drawiventory,
+                banner, spark, ori, items, c
+            )
+
+            if pages:
+                print(pages, flush=True)
+
+            pages = [os.path.join('./_temp/', i) for i in pages]
+            #view = None
+            # if len(pages) > 1:
+            view = Paginacao(pages, 60, interaction.user)
+            await interaction.followup.send(
+                file=dFile(rf'{pages[0]}'),
+                view=view, ephemeral=True)
             out = interaction.edit_original_response
             view.response = out
         except Exception as e:
-            await interaction.response.send_message("```%s.```" % (e), ephemeral=True)
+            print(e, flush=True)
+            await interaction.followup.send(e, ephemeral=True)
             raise e
-        
 
     # description='Use diariamente para receber recompensas incríveis'
     @longest_cooldown
