@@ -4,14 +4,16 @@ import discord
 import requests
 import shutil
 import ast
+import json
 
 from base.utilities import utilities
 from base.views import Paginacao, SimpleModalWaitFor as cItemModal
 from base.functions import (
-    get_userAvatar_func as getUserAvatar, 
-    user_inventory, 
-    print_progress_bar as progress, 
-    error_delete_after)
+    get_iventory,
+    print_progress_bar as progress,
+    error_delete_after,
+    checktype_,
+    inventory_update_key)
 
 from discord import File as dFile, Interaction, app_commands
 from discord.ext import commands
@@ -19,7 +21,6 @@ from discord.utils import format_dt
 from discord.app_commands.errors import AppCommandError
 
 # CLASS SHOP
-
 botVar = commands.Bot
 
 botVar.shopItems = []
@@ -30,6 +31,8 @@ longest_cooldown = app_commands.checks.cooldown(
 activity_cooldown = app_commands.checks.cooldown(
     1, 5.0, key=lambda i: (i.guild_id, i.user.id))
 
+from bot import log
+
 
 class Shop(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
@@ -37,35 +40,486 @@ class Shop(commands.Cog):
         self.db = utilities.database(self.bot.loop)
 
     async def cog_app_command_error(
-        self, 
-        interaction: Interaction, 
-        error: AppCommandError
+            self,
+            interaction: Interaction,
+            error: AppCommandError
     ):
         if isinstance(
-            error, 
-            app_commands.CommandOnCooldown
+                error,
+                app_commands.CommandOnCooldown
         ):
             return await error_delete_after(interaction, error)
         if isinstance(
-            error, 
-            app_commands.TransformerError
+                error,
+                app_commands.TransformerError
         ):
             return await interaction.response.send_message(
-                "O texto deve conter 80 caracteres ou menos, contando espaços.", ephemeral=True)
+                "O texto deve conter 80 caracteres ou menos, contando espaços.",
+                ephemeral=True
+            )
 
-    def checktype_(self, type):
-        match str(type).upper():
-            case "MOLDURA":
-                itype = 'mold'
-            case "TITULO":
-                itype = 'title'
-            case "BANNER":
-                itype = 'banner'
-            case "CARRO":
-                itype = 'car'
-            case "BADGE":
-                itype = 'badge'
-        return itype
+    # @activity_cooldown
+    @app_commands.command(name='comprar')
+    async def comprar(self, interaction: Interaction, item_id: int) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        # await ctx.message.delete()
+        item = await self.db.fetch("""
+            SELECT item_type_id, value, type_, lvmin, name, group_ FROM itens 
+                WHERE id=(
+                    SELECT id FROM shop WHERE id=(%s)
+                )
+            """ % (item_id,))
+
+        if not item:
+            return await interaction.followup.send(
+                f"{interaction.user.mention}, ou não existe um item com esse número(ID) "
+                "ou o item não está disponível para compra.", ephemeral=True)
+
+        item_id_uui, item_value, item_type, item_lvmin, item_name, item_group = item[
+            0][0], item[0][1], item[0][2], item[0][3], item[0][4], item[0][5]
+
+        if item_lvmin == None:
+            item_lvmin = 0
+        if item_value == None:
+            item_value = 0
+        user_info = await self.db.fetch(f"""
+            SELECT spark, rank, iventory_id FROM users WHERE id=('{interaction.user.id}')
+        """)
+        if not user_info:
+            return await interaction.followup.send(
+                "Usuário não encontrado na database", ephemeral=True
+            )
+        spark, rank, iventory_id = user_info[0][0], user_info[0][1], user_info[0][2]
+        if spark < item_value:
+            return await interaction.followup.send(
+                "Você não tem sparks o suficiênte para comprar este item. D:", ephemeral=True
+            )
+        if int(rank) < int(item_lvmin):
+            return await interaction.followup.send(
+                "Você não tem nível o bastante para comprar este item. D:", ephemeral=True
+            )
+
+        # GET ITENS FROM WITH SPECIFIC KEY
+        # user_itens = await self.db.fetchrow("SELECT itens::json FROM iventory WHERE iventory_id = '%s'" % (iventory_id))
+        # Check if the item_id_uui already exists in the user_itens
+        update_result = await inventory_update_key(self, iventory_id, item_type, str(item_group + '.ids'),
+                                                   str(item_id_uui), 'buy', 1)
+
+        if update_result == "ITEM_ALREADY_EXISTS":
+            return await interaction.followup.send(
+                "Você não pode comprar mais de um item não consumível.", ephemeral=True)
+
+        if update_result == "ITEM_ADDED_SUCCESSFULLY":
+            print(update_result, flush=True)
+            getSpark = await self.db.execute(
+                """
+                    UPDATE users SET spark = (spark - %s) WHERE id = (\'%s\') RETURNING spark
+                """ % (int(item_value), interaction.user.id,)
+            )
+
+            await interaction.followup.send(
+                "Você comprou %s! \n%s sparks foram descontados de sua carteira e você agora tem %s." % (
+                    item_name, item_value, getSpark[0][0]), ephemeral=True)
+
+    @app_commands.command(name='usar')
+    async def usar(self, interaction: Interaction, item_id: int) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        # await ctx.message.delete()
+        item = await self.db.fetch("""
+            SELECT item_type_id, value, type_, lvmin, name, group_ FROM itens 
+                WHERE id=(
+                    SELECT id FROM shop WHERE id=(%s)
+                )
+            """ % (item_id,))
+
+        if not item:
+            return await interaction.followup.send(
+                f"{interaction.user.mention}, ou não existe um item com esse número(ID) "
+                "ou o item não está disponível para compra.", ephemeral=True)
+
+        item_id_uui, item_value, item_type, item_lvmin, item_name, item_group = item[
+            0][0], item[0][1], item[0][2], item[0][3], item[0][4], item[0][5]
+
+        # if item_type not in ['Utilizavel', 'Carro']:
+        #     return await interaction.followup.send('Item não utilizável.', ephemeral=True)
+
+        if item_lvmin == None:
+            item_lvmin = 0
+        if item_value == None:
+            item_value = 0
+
+        user_info = await self.db.fetch(f"""
+            SELECT spark, rank, iventory_id FROM users WHERE id=('{interaction.user.id}')
+        """)
+        if not user_info:
+            return await interaction.followup.send(
+                "Usuário não encontrado na database", ephemeral=True
+            )
+        spark, rank, iventory_id = user_info[0][0], user_info[0][1], user_info[0][2]
+
+        # GET ITENS FROM WITH SPECIFIC KEY
+        # user_itens = await self.db.fetchrow("SELECT itens::json FROM iventory WHERE iventory_id = '%s'" % (iventory_id))
+        # Check if the item_id_uui already exists in the user_itens
+        print("Test", flush=True)
+        update_result = await inventory_update_key(self, iventory_id, item_type, str(item_group + '.ids'),
+                                                   str(item_id_uui), 'use', 0)
+
+        if update_result == 'ITEM_DONT_EXISTS':
+            return await interaction.followup.send(
+                "Você não pode consumir um item que não tem.", ephemeral=True)
+
+        if update_result == 'ITEM_ALREADY_EXISTS':
+            return await interaction.followup.send(
+                "Você não pode consumir um item que não é consumível.", ephemeral=True)
+
+        if update_result == "ITEM_ADDED_SUCCESSFULLY":
+            await interaction.followup.send(
+                "Você usou %s!" % (item_name), ephemeral=True)
+
+    @activity_cooldown
+    @app_commands.command(name='equipar')
+    async def equipar(self, interaction: Interaction, item_id: int):
+        await interaction.response.defer(thinking=True)
+        try:
+            item = await self.db.fetch(
+                """
+                    SELECT item_type_id, type_, name, group_ FROM itens WHERE id=(%s)
+                """ % (item_id,)
+            )
+            if not item:
+                return await interaction.followup.send(
+                    "Esse item não existe.", ephemeral)
+
+            id_ = item[0][0]
+            type_ = item[0][1]
+            name = item[0][2]
+            group_ = item[0][3]
+
+            inv = await get_iventory(self, interaction.user.id)
+            inv_ids = []
+            for row in inv:
+                if not row[1]: continue
+                for items in row[1]:
+                    l = ast.literal_eval(str(items))
+                    for key, value in l.items():
+                        inv_ids.append(key)
+
+            if str(id_) not in inv_ids:
+                return await interaction.followup.send("Você não tem esse item.", ephemeral=True)
+            try:
+                # É JSONB PORQUE É POSSÍVEL EQUIPAR MAIS DE 1 BADGE
+                if type_.upper() == "BADGE":
+                    result = await self.db.fetchrow(
+                        """
+                             SELECT badge::json FROM iventory
+                             WHERE iventory_id = (
+                                SELECT iventory_id FROM users
+                                WHERE id=(\'%s\')
+                            )
+                        """ % (interaction.user.id))
+                    data = ast.literal_eval(result[0])
+
+                    if group_ not in data:
+                        data[group_] = []
+
+                    if str(id_) in data[group_]:
+                        return await interaction.followup.send(
+                            "Item já equipado.", ephemeral=True
+                        )
+                    lengh_itens = data.get(group_)
+                    if len(lengh_itens) >= 5:
+                        return await interaction.followup.send(
+                            "Não é possívle equipar mais de 5 badges.", 
+                            ephemeral=True
+                        )
+                    data[group_].append(str(id_))
+                    data = json.dumps(data)
+
+                    await self.db.fetch(
+                        """
+                            UPDATE iventory set badge = \'%s\'
+                            WHERE iventory_id = (
+                                SELECT iventory_id FROM users
+                                WHERE id=(\'%s\')
+                            )
+                        """ % (data, interaction.user.id)
+                    )
+                else:
+                    await self.db.fetch("""
+                        UPDATE iventory SET %s=(\'%s\')
+                        WHERE iventory_id=(
+                            SELECT iventory_id FROM users 
+                            WHERE id = (\'%s\')
+                        )
+                        RETURNING moldura;
+                    """ % (type_, id_, interaction.user.id,))
+            except Exception as e:
+                raise e
+            else:
+                await interaction.followup.send(
+                    "%s %s %s!" % (
+                        type_.title(),
+                        name,
+                       "equipada" if type_.endswith('a') else "equipado"
+                    ), ephemeral=True
+                )
+        except Exception as e:
+            await interaction.followup.send(e)
+            raise e
+    @equipar.error
+    async def equipar_error(self, interaction: Interaction, error):
+        if isinstance(error, commands.BadArgument):
+            await interaction.response.send_message(
+                "```Esse item não existe.```",
+                ephemeral=True
+            )
+        elif isinstance(error, commands.MissingRequiredArgument):
+            await interaction.response.send_message(
+                "```Você não tem esse item.```",
+                ephemeral=True
+            )
+        else:
+            pass
+
+    #   Equipar
+    @activity_cooldown
+    @app_commands.command(name='desequipar')
+    async def desequipar(self, interaction: Interaction, item_id: int):
+        await interaction.response.defer(thinking=True)
+        try:
+            item = await self.db.fetch("""
+                SELECT item_type_id, type_, name, group_ FROM itens WHERE id=(%s)
+
+            """ % (item_id,)
+                                       )
+            if item:
+                item_id = item[0][0]
+                type_ = item[0][1]
+                name = item[0][2]
+                group_ = item[0][3]
+
+            inv = await get_iventory(self, interaction.user.id)
+
+            inv_ids = []
+            for row in inv:
+                if not row[1]: continue
+                for items in row[1]:
+                    l = ast.literal_eval(str(items))
+                    for key, value in l.items():
+                        inv_ids.append(str(key))
+
+            print(type(inv_ids), flush=True)
+            print("-*-"*10, flush=True)
+            print(type(str(item_id)), flush=True)
+            if str(item_id) not in inv_ids:
+                return await interaction.followup.send(
+                    "Você não tem esse item.",
+                    ephemeral=True
+                )
+            result = await self.db.fetchrow(
+                """
+                     SELECT badge::json FROM iventory
+                     WHERE iventory_id = (
+                        SELECT iventory_id FROM users
+                        WHERE id=(\'%s\')
+                    )
+                """ % (interaction.user.id))
+            data = ast.literal_eval(result[0])
+
+            if str(item_id) not in data[group_]:
+                return await interaction.followup.send(
+                    "Esse item não está equipado.",
+                    ephemeral=True
+                )
+            print("removido", flush=True)
+            data[group_].remove(str(item_id))
+            data = json.dumps(data)
+
+            try:
+                if type_ == "badge":
+                    await self.db.fetch(
+                        """
+                            UPDATE iventory SET badge = \'%s\'
+                            WHERE iventory_id = (
+                                SELECT iventory_id FROM users
+                                WHERE id = ('%s')
+                            )
+                        """ % ( data, interaction.user.id, )
+                    )
+                else:
+                    await self.db.fetch("""
+                        UPDATE iventory SET %s = \'%s\'
+                        WHERE iventory_id=(
+                            SELECT iventory_id FROM users
+                            WHERE id = (\'%s\')
+                        );
+                    """ % (type_, data, interaction.user.id,)
+                    )
+
+            except Exception as e:
+                raise e
+            else:
+                await interaction.followup.send(
+                    "%s %s %s!" %
+                    (type_.title(), name,
+                     "desequipada" if type_.endswith('a') else "desequipado"),
+                    ephemeral=True
+                )
+        except Exception as e:
+            await interaction.followup.send(e)
+            raise e
+    @desequipar.error
+    async def desequipar_error(self, interaction: Interaction, error):
+        if isinstance(error, commands.BadArgument):
+            await interaction.response.send_message(
+                "```Esse item não existe.```",
+                ephemeral=True
+            )
+        elif isinstance(error, commands.MissingRequiredArgument):
+            await interaction.response.send_message(
+                "```Você não tem esse item.```",
+                ephemeral=True
+            )
+        else:
+            pass
+
+    #   LOJAs
+    @activity_cooldown
+    @app_commands.command(name='loja')
+    async def loja(self, interaction: Interaction, member: discord.Member = None) -> None:
+        uMember = member
+        if not uMember:
+            uMember = interaction.user or interaction.guild.get_member(
+                interaction.user.id)
+
+        total = await self.db.fetch("SELECT COUNT(id) FROM shop")
+        total = int(re.sub(r"\D", "", str(total[0][0])))
+        if total <= 0:
+            return await interaction.response.send_message(
+                "`No momento, não temos itens na loja.`",
+                ephemeral=True
+            )
+
+        rows = await self.db.fetch("""
+            SELECT id, name, type_, value, img, lvmin 
+            FROM shop ORDER BY value Desc
+        """)
+
+        try:
+            items = []
+            for i in range(total):
+                items.append({i: {
+                    "id": str(rows[i][0]),
+                    "name": str(rows[i][1]),
+                    "type": str(rows[i][2]),
+                    "value": str(rows[i][3]),
+                    "img": str(rows[i][4]),
+                    "lvmin": str(rows[i][5])
+                }})
+        except Exception as e:
+            raise e
+        else:
+
+            userResources = await self.db.fetch(
+                """
+                    SELECT spark, ori, iventory_id FROM users WHERE id = ('%s')
+                """ % (uMember.id,)
+            )
+
+            spark = userResources[0][0]
+            if userResources[0][0] is None:
+                spark = 0
+
+            ori = userResources[0][1]
+            if userResources[0][1] is None:
+                ori = 0
+
+            banner_id = await self.db.fetch(
+                """
+                    SELECT img_loja FROM banners WHERE id = (
+                        SELECT banner FROM iventory WHERE iventory_id=('%s')
+                    )
+                """ % (userResources[0][2],)
+            )
+            banner = None
+
+            if banner_id:
+                banner = banner_id[0][0]
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        exist = os.path.exists(
+            rf'./_temp/{botVar.oldImgs[0] if len(botVar.oldImgs) > 0 else False}')
+        if botVar.shopItems == items and exist != False:
+            items = botVar.shopItems
+            pages = botVar.oldImgs
+            # pageFile = botVar.oldImgs[0]
+
+        else:
+            botVar.oldImgs = []
+            # pageFile = []
+            print("Tentando gerar páginas...", flush=True)
+            pages = await self.bot.loop.run_in_executor(
+                None,
+                utilities.shopnew.drawloja,
+                total, spark, ori, items, banner
+            )
+            if pages:
+                print(pages, flush=True)
+
+            botVar.oldImgs = pages
+            botVar.shopItems = items
+
+        pages = [os.path.join('./_temp/', i) for i in pages]
+        view = Paginacao(pages, 60, interaction.user)
+        await interaction.followup.send(
+            file=dFile(rf'{pages[0]}'), 
+            view=view, ephemeral=True)
+        out = interaction.edit_original_response
+        view.response = out
+
+    #   SHOP OPTIONS
+    @activity_cooldown
+    @app_commands.checks.has_any_role(
+        667839130570588190,
+        815704339221970985,
+        677283492824088576,
+        'Administrador',
+        'Admin',
+        943171518895095869,
+        943174476839936010,
+        943192163947274341,
+        943172687642132591,
+        943171893752659979,
+        943172687642132591,
+        943193084584402975,
+        943251043838468127
+    )
+    @app_commands.command(name='canotbuy')
+    async def canotbuy(self, interaction: discord.Interaction, id: int):
+        result = await self.db.fetch(f'SELECT * FROM itens WHERE id = {id}')
+        if result:
+            await self.db.fetch(f'UPDATE itens SET canbuy = False WHERE id = {id}')
+            emb = discord.Embed(
+                description=f'O item foi removido da loja.',
+                color=discord.Color.green()).set_footer(
+                text='Use [s.canbuy ID] para recolocar o item novamente.')
+            await interaction.response.send_message(f'{interaction.user.mention}', embed=emb)
+        else:
+            await interaction.response.send_message("Não encontrei um item com esse ID", delete_after=5)
+
+    @activity_cooldown
+    @app_commands.command(name='canbuy')
+    async def canbuy(self, interaction: discord.Interaction, id: int):
+        result = await self.db.fetch(f'SELECT * FROM itens WHERE id = {id}')
+        if result:
+            await self.db.fetch(f'UPDATE itens SET canbuy = True WHERE id = {id}')
+            emb = discord.Embed(
+                description=f'O item foi adicionado à loja.',
+                color=discord.Color.green()).set_footer(
+                text='Use [s.canotbuy ID] para remover o item novamente.')
+            await interaction.response.send_message(f'{interaction.user.mention}', embed=emb)
+        else:
+            await interaction.response.send_message("Não encontrei um item com esse ID", delete_after=5)
 
     @activity_cooldown
     @app_commands.command(name='cbanners')
@@ -88,7 +542,7 @@ class Shop(commands.Cog):
                     true, 15500000) 
                 ON CONFLICT (name) DO NOTHING 
             """ % (item_name, item, item))
-            count = i+1
+            count = i + 1
 
         print(f"{count} Banners criadas")
         await interaction.followup.send(f"{count} Banners criadas", ephemeral=True)
@@ -170,6 +624,7 @@ class Shop(commands.Cog):
     @app_commands.command(name='citem')
     async def citem(self, interaction) -> None:
         """Test command to wait for input. This will trigger a modal."""
+
         def check(modal: cItemModal, modal_interaction: Interaction) -> bool:
             return modal_interaction.user.id == interaction.user.id
 
@@ -190,289 +645,6 @@ class Shop(commands.Cog):
 
         await wait_modal.interaction.response.send_message(res)
 
-    #@activity_cooldown
-    @app_commands.command(name='comprar')
-    async def comprar(self, interaction: Interaction, item_id: int) -> None:
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        # await ctx.message.delete()
-        item = await self.db.fetch("""
-            SELECT item_type_id, value, type_, lvmin, name FROM itens 
-                WHERE id=(
-                    SELECT id FROM shop WHERE id=(%s)
-                )
-            """ % (item_id, ))
-
-        if not item:
-            return await interaction.response.send_message(
-                f"{interaction.user.mention}, ou não existe um item com esse número(ID) "
-                "ou o item não está disponível para compra.", ephemeral=True)
-
-        item_id_uui,  item_value, item_type, item_lvmin, item_name = item[
-            0][0], item[0][1], item[0][2], item[0][3], item[0][4]
-
-        ivent_key_name = item_type
-        # print (ivent_key_name)
-
-        # GET ITENS FROM WITH SPECIFIC KEY
-        user_itens = await user_inventory(self, interaction.user.id, 'get', str(ivent_key_name), item_id_uui)
-        # user_itens = await user_inventory(self, interaction.user.id, 'add', [str(ivent_key_name)], [int(item_id)])
-        # RETURN IF HAS IT ALREADY
-        if ivent_key_name == "Badge":
-            for i in user_itens:
-                if str(item_id) in i[1]:
-                    return await interaction.followup.send("Você já tem esse item.", ephemeral=True)
-                else:
-                    pass
-        elif ivent_key_name == "Banner":
-            for i in user_itens:
-                if i[0] and str(i[0]) == str(item_id_uui):
-                    return await interaction.followup.send("Você já tem esse item.", ephemeral=True)
-        else:
-            if str(item_id) in user_itens[0][1]:
-                return await interaction.followup.send("Você já tem esse item.", ephemeral=True)
-
-        user_info = await self.db.fetch(f"""
-            SELECT spark, rank, iventory_id FROM users WHERE id=('{interaction.user.id}')
-        """)
-        if not user_info:
-            return await interaction.followup.send(
-                "Usuário não encontrado na database", ephemeral=True
-            )
-        spark, rank, iventory_id = user_info[0][0], user_info[0][1], user_info[0][2]
-
-        if item_lvmin == None:
-            item_lvmin = 0
-        if item_value == None:
-            item_value = 0
-
-        if spark < item_value:
-            return await interaction.followup.send(
-                "Você não tem sparks o suficiênte para comprar este item. D:", ephemeral=True
-            )
-        if int(rank) < int(item_lvmin):
-            return await interaction.followup.send(
-                "Você não tem nível o bastante para comprar este item. D:", ephemeral=True
-            )
-        l = await user_inventory(self, interaction.user.id, 'add', str(ivent_key_name), item_id_uui)
-
-        getSpark = await self.db.fetch(
-            """
-                UPDATE users SET spark = (spark - %s) WHERE id = (\'%s\') RETURNING spark
-            """ % (int(item_value), interaction.user.id, )
-        )
-
-        await interaction.followup.send(
-            "Você comprou %s! \n%s sparks foram descontados de sua carteira e você agora tem %s. " % (
-                item_name if item_type != "Badge" else f"Badge {item_name}", item_value, getSpark[0][0]), ephemeral=True)
-
-    @activity_cooldown
-    @app_commands.command(name='equipar')
-    async def equipar(self, interaction: Interaction, item_id: int):
-        item = await self.db.fetch("""
-            SELECT item_type_id, type_, name, group_ FROM itens WHERE id=(%s)
-            
-        """ % (item_id, )
-        )
-        if item:
-            id_ = item[0][0]
-            type_ = item[0][1]
-            name = item[0][2]
-            group_ = item[0][3]
-
-        inv = await user_inventory(self, interaction.user.id, 'get', [type_])
-
-        inv_ids = []
-        for row in inv:
-            l = ast.literal_eval(row[1])
-            for key, value in l.items():
-                inv_ids.append(key)
-
-        itype = self.checktype_(type_)
-
-        if str(id_) not in inv_ids:
-            return await interaction.response.send_message("Você não tem esse item.", ephemeral=True)
-
-        try:
-            if itype == "badge":
-                await self.db.fetch("""
-                    UPDATE iventory SET badge = (
-                        SELECT jsonb_set(
-                            %s::jsonb,
-                            '{%s}'::text[],
-                            '\"%s\"'::jsonb
-                        )
-                    ) WHERE iventory_id=(
-                        SELECT iventory_id FROM users WHERE id=(\'%s\')
-                    )
-
-                    RETURNING badge::jsonb;
-                """ % (itype, group_, id_, interaction.user.id))
-            else:
-                await self.db.fetch("""
-                    UPDATE iventory SET %s=(\'%s\') 
-                    WHERE iventory_id=(
-                        SELECT iventory_id FROM users WHERE id = (\'%s\')
-                    )
-                    RETURNING mold;
-                """ % (itype, id_, interaction.user.id, ))
-        except Exception as e:
-            raise e
-        else:
-            await interaction.response.send_message("%s %s %s!" %
-                                                    (type_.title(), name,
-                                                     "equipada" if type_.endswith('a') else "equipado"), ephemeral=True)
-
-    @equipar.error
-    async def equipar_error(self, interaction: Interaction, error):
-        if isinstance(error, commands.BadArgument):
-            await interaction.response.send_message("```Esse item não existe.```", ephemeral=True)
-        elif isinstance(error, commands.MissingRequiredArgument):
-            await interaction.response.send_message("```Você não tem esse item.```", ephemeral=True)
-        else:
-            pass
-
-    #   Equipar
-    @activity_cooldown
-    @app_commands.command(name='desequipar')
-    async def desequipar(self, interaction: Interaction, item_id: int):
-        item = await self.db.fetch("""
-            SELECT item_type_id, type_, name, group_ FROM itens WHERE id=(%s)
-            
-        """ % (item_id, )
-        )
-        if item:
-            item_id = item[0][0]
-            type_ = item[0][1]
-            name = item[0][2]
-            group_ = item[0][3]
-
-        inv = await user_inventory(self, interaction.user.id, 'get', [type_])
-
-        inv_ids = []
-        for row in inv:
-            l = ast.literal_eval(row[1])
-            for key, value in l.items():
-                inv_ids.append(key)
-
-        itype = self.checktype_(type_)
-
-        if str(item_id) not in inv_ids:
-            return await interaction.response.send_message("Você não tem esse item.", ephemeral=True)
-
-        try:
-            if itype == "badge":
-                await self.db.fetch("""
-                    UPDATE iventory SET badge = (
-                        SELECT jsonb_set(
-                            %s::jsonb,
-                            '{%s}'::text[],
-                            '\"%s\"'::jsonb
-                        )
-                    ) WHERE iventory_id=(
-                        SELECT iventory_id FROM users WHERE id=(\'%s\')
-                    )
-
-                    RETURNING badge::jsonb;
-                """ % (itype, group_, item_id, interaction.user.id))
-            else:
-                await self.db.fetch("""
-                    UPDATE iventory SET %s= Null
-                    WHERE iventory_id=(
-                        SELECT iventory_id FROM users WHERE id = (\'%s\')
-                    );
-                """ % (itype, interaction.user.id, ))
-        except Exception as e:
-            raise e
-        else:
-            await interaction.response.send_message("%s %s %s!" %
-                                                    (type_.title(), name, "deequipada" if type_.endswith('a') else "equipado"), ephemeral=True)
-    @desequipar.error
-    async def desequipar_error(self, interaction: Interaction, error):
-        if isinstance(error, commands.BadArgument):
-            await interaction.response.send_message("```Esse item não existe.```", ephemeral=True)
-        elif isinstance(error, commands.MissingRequiredArgument):
-            await interaction.response.send_message("```Você não tem esse item.```", ephemeral=True)
-        else:
-            pass
-
-    #   LOJAs
-    @activity_cooldown
-    @app_commands.command(name='loja')
-    async def loja(self, interaction: Interaction, member: discord.Member = None) -> None:
-        uMember = member
-        if not uMember:
-            uMember = interaction.user or interaction.guild.get_member(
-                interaction.user.id)
-
-        total = await self.db.fetch("SELECT COUNT(id) FROM shop")
-        total = int(re.sub(r"\D", "", str(total[0][0])))
-        if total <= 0:
-            return await interaction.response.send_message("`No momento, não temos itens na loja.`", ephemeral=True)
-
-        rows = await self.db.fetch("""
-            SELECT id, name, type_, value, img, lvmin 
-            FROM shop ORDER BY value Desc
-        """)
-
-        try:
-            items = []
-            for i in range(total):
-                items.append({i: {
-                    "id": str(rows[i][0]),
-                    "name": str(rows[i][1]),
-                    "type": str(rows[i][2]),
-                    "value": str(rows[i][3]),
-                    "img": str(rows[i][4]),
-                    "lvmin": str(rows[i][5])
-                }})
-        except Exception as e:
-            raise e
-        else:
-
-            userResources = await self.db.fetch("SELECT spark, ori, iventory_id FROM users WHERE id = ('%s')" % (uMember.id, ))
-
-            spark = userResources[0][0]
-            if userResources[0][0] is None:
-                spark = 0
-
-            ori = userResources[0][1]
-            if userResources[0][1] is None:
-                ori = 0
-
-            banner_id = await self.db.fetch("""
-                SELECT img_loja FROM banners WHERE id =
-                    (
-                        SELECT banner FROM iventory WHERE iventory_id=('%s')
-                    )
-                    """ % (userResources[0][2], ))
-            banner = None
-
-            if banner_id:
-                banner = banner_id[0][0]
-
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        exist = os.path.exists(
-            rf'./_temp/{botVar.oldImgs[0] if len(botVar.oldImgs) > 0 else False}')
-        if botVar.shopItems == items and exist != False:
-            items = botVar.shopItems
-            pages = botVar.oldImgs
-            #pageFile = botVar.oldImgs[0]
-
-        else:
-            botVar.oldImgs = []
-            #pageFile = []
-
-            pages = utilities.shopnew.drawloja(
-                total, spark, ori, items, banner
-            )
-            botVar.oldImgs = pages
-            botVar.shopItems = items
-
-        pages = [os.path.join('./_temp/', i) for i in pages]
-        view = Paginacao(pages, 60, interaction.user)
-        await interaction.followup.send(file=dFile(rf'{pages[0]}'), view=view, ephemeral=True)
-        out = interaction.edit_original_response
-        view.response = out
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Shop(bot))

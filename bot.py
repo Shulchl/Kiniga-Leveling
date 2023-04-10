@@ -2,7 +2,6 @@ import json
 import logging
 import logging.handlers
 import os
-
 import aiohttp
 import discord
 import asyncio
@@ -13,15 +12,23 @@ from base.struct import Config
 
 TEST_GUILD = discord.Object(id=943170102759686174)
 
-with open('config.json', 'r', encoding='utf-8') as f:
-    cfg = Config(json.loads(f.read()))
-
 basePath = '.'
-path = os.path.abspath(os.path.join(basePath, '_temp'))
-isExist = os.path.exists(path)
-if not isExist:
-    os.mkdir(path)
-    os.mkdir(os.path.join(path, 'h'))
+
+def createNewPath(path: str):
+    path = os.path.abspath(os.path.join(basePath, path))
+    isExist = os.path.exists(path)
+    if not isExist:
+        os.mkdir(path)
+    return
+
+
+createNewPath('_temp')
+
+cfg = None
+with open(os.path.join(basePath, 'config.json'), 'r', encoding='utf-8') as f:
+    cfg = Config(json.loads(f.read()))
+    f.close()
+
 
 def log_handler() -> logging.Logger:
     logger = logging.getLogger()
@@ -55,27 +62,29 @@ class SpinovelBot(commands.Bot):
             activity=atividade
         )
 
+        print('Excluindo arquivos temporários...', flush=True)
         for filename in os.listdir('./_temp'):
-            if filename.endswith('.py'):
-                print('Removendo %s ' % (filename, ))
-                os.remove('./_temp/%s' % (filename, ))
-                print('%s removido.' % (filename, ))
+            if filename.endswith(".png") or filename.endswith(".jpg"):
+                print('Removendo %s ' % (filename,), flush=True)
+                os.remove('./_temp/%s' % (filename,))
+                print('%s removido.' % (filename,), flush=True)
 
     async def load_cogs(self) -> None:
         for filename in os.listdir('./base/cmds'):
             if filename.endswith('.py'):
                 try:
-                    await self.load_extension(f'base.cmds.{filename[ :-3 ]}')
-                    print(f'Cog "{filename}" carregada.')
+                    await self.load_extension(f'base.cmds.{filename[:-3]}')
+                    print(f'Cog "{filename}" carregada.', flush=True)
                 except Exception as e:
                     print(
-                        f'Ocorreu um erro enquanto a cog "{filename}" carregava.\n{e}')
+                        f'Ocorreu um erro enquanto a cog "{filename}" carregava.\n{e}', flush=True)
                     log.error(e)
                     raise e
 
     async def setup_hook(self) -> None:
-        #print(f'Logado como {self.user} (ID: {self.user.id}) usando discord.py {discord.__version__}')
-        print('------')
+        print(
+            f'Logado como {self.user} (ID: {self.user.id}) usando discord.py {discord.__version__}', flush=True)
+        print('------', flush=True)
         await self.load_cogs()
         # self.tree.copy_global_to(guild=TEST_GUILD)
         # await self.tree.sync(guild=TEST_GUILD)
@@ -95,6 +104,7 @@ async def main() -> None:
 
 async def warn() -> None:
     return log.warning("bot foi desligado usando ctrl+c no terminal!")
+
 
 if __name__ == "__main__":
     try:

@@ -3,20 +3,22 @@ import datetime
 import json
 import random
 import os
+import discord
 
 from asyncio import sleep as asyncsleep
+from typing import Literal, Optional
+from io import BytesIO
 
-import discord
 from discord import File as dFile
 from discord.ext import commands, tasks
 from discord.utils import format_dt
 
 from base.functions import (
-    convert, 
+    convert,
     giveway_idFunction,
-    starterRoles, 
-    starterItens, 
-    timeRemaning, 
+    starterRoles,
+    starterItens,
+    timeRemaning,
     user_inventory,
     get_userAvatar_func
 )
@@ -24,10 +26,6 @@ from base.image import ImageCaptcha
 from base.struct import Config
 from base.utilities import utilities
 
-
-from typing import Literal, Optional
-
-from io import BytesIO
 
 class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     def __init__(self, bot: commands.Bot) -> None:
@@ -44,7 +42,11 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     def cog_unload(self):
         self.bdayloop.close()
 
-
+    @commands.group()
+    @commands.is_owner()
+    @commands.guild_only()
+    async def config(self, ctx):
+        pass
     # CONFIG
 
     @commands.command(name='sorteio')
@@ -62,7 +64,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         943172687642132591,
         943193084584402975,
         943251043838468127)
-    async def sorteio(self, ctx, channel : discord.Object, time : str, prize : str ):
+    async def sorteio(self, ctx, channel: discord.Object, time: str, prize: str):
         if channel and time and prize:
             ans = [channel.id, time, str(prize.replace('"', ''))]
         else:
@@ -83,11 +85,11 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
                     msg = await self.bot.wait_for('message', timeout=15.0, check=validation)
                 except asyncio.TimeoutError:
                     return await ctx.send('Você não respondeu a tempo.', delete_after=5)
-                    
+
                 else:
                     ans.append(msg.content)
         try:
-            channel_id = int(ans[0]) #[2:-1]
+            channel_id = int(ans[0])  # [2:-1]
         except Exception as e:
             return await ctx.send(f"Não consegui encontrar esse canal. {e}", delete_after=5)
 
@@ -106,7 +108,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
             pName = await self.db.fetch(f"SELECT name, id FROM itens WHERE id ='{int(prize_.strip('#'))}'")
             if pName:
                 prize_ = pName[0][0]
-        await ctx.send(f"O sorteio ocorrerá em {channel.mention} e vai durar {ans[ 1 ]}!")
+        await ctx.send(f"O sorteio ocorrerá em {channel.mention} e vai durar {ans[1]}!")
 
         # embed = discord.Embed(
         #     title="Giveaway!",
@@ -121,7 +123,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         #     text=f"Ends {ans[1]} from now!"
         # )
         end = datetime.timedelta(seconds=(3600 * 5)) + \
-            datetime.timedelta(seconds=time)
+              datetime.timedelta(seconds=time)
         embed = discord.Embed(
             title=f"Reaja com 🎉 para ganhar **{prize_}**!\nTempo até o vencedor ser decidido:  **{timeRemaning(time)}**",
             description="",
@@ -133,7 +135,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
             value=ctx.author.mention
         )
         embed.set_footer(
-            text=f"Sorteio irá durar por {ans[ 1 ]}\n. {end} por enquanto!")
+            text=f"Sorteio irá durar por {ans[1]}\n. {end} por enquanto!")
         # await ctx.send(file=discord.File('./src/extra/ori.png'))
 
         my_msg = await channel.send(embed=embed)
@@ -141,8 +143,6 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
 
         await my_msg.add_reaction("🎉")
         await asyncio.sleep(time)
-
-        
 
         try:
             new_msg = await channel.fetch_message(my_msg.id)
@@ -156,7 +156,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
 
         users.remove(self.bot.user)
 
-        await ctx.send(f"users: {', '.join(user.name for user in users)}")        
+        await ctx.send(f"users: {', '.join(user.name for user in users)}")
 
         if len(users) > 1:
             winner = random.choice(users)
@@ -165,9 +165,9 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
             winner = next(iter(users or []), None)
         # // {winner.mention} ganhou {prize_}
         await channel.send(
-            "Parabéns, %s!.\n`Você tem %s minutos para falar no canal, do contrário o sorteio será refeito.`" % 
-            (winner.mention, format_dt(datetime.datetime.now() + 
-                datetime.timedelta(seconds=60), 'R')),
+            "Parabéns, %s!.\n`Você tem %s minutos para falar no canal, do contrário o sorteio será refeito.`" %
+            (winner.mention, format_dt(datetime.datetime.now() +
+                                       datetime.timedelta(seconds=60), 'R')),
             delete_after=59)
 
         await channel.set_permissions(winner, send_messages=True)
@@ -190,7 +190,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
                         await self.bot.loop.create_task(self.reroll(ctx, channel, winner))
                     else:
                         await self.db.fetch(
-                            f"UPDATE users SET inv = (\'{str(invent[ 0 ][ 0 ]) + ',' + str(pName[ 0 ][ 1 ])}\') WHERE id=(\'{winner.id}\') ")
+                            f"UPDATE users SET inv = (\'{str(invent[0][0]) + ',' + str(pName[0][1])}\') WHERE id=(\'{winner.id}\') ")
                         await channel.send(f"Parabéns! {winner.mention} acaba de ganhar {prize_}.")
                         await channel.set_permissions(winner, send_messages=False)
             else:
@@ -237,7 +237,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
                         await channel.send(f"{user.mention}, você precisa comprar um ticket primeiro.")
 
                 except Exception as e:
-                    raise e
+                    raise (e)
 
     @commands.has_any_role(
         667839130570588190,
@@ -295,7 +295,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         birthday = await self.db.fetch("SELECT id FROM users WHERE birth=TO_CHAR(NOW() :: DATE, 'dd/mm')")
 
         for bday in birthday:
-            await channel.send(f"Parabéns <@{bday[ 0 ]}>, hoje é seu aniversário! Todos dêem parabéns!")
+            await channel.send(f"Parabéns <@{bday[0]}>, hoje é seu aniversário! Todos dêem parabéns!")
 
     @bdayloop.before_loop  # wait for the bot before starting the task
     async def before_send(self):
@@ -347,8 +347,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         else:
             await ctx.send(error)
 
-    @commands.is_owner()
-    @commands.command()
+    @config.command()
     @commands.cooldown(1, 30, commands.BucketType.member)
     async def load(self, ctx, extension):
         await self.bot.load_extension(f'base.cmds.{extension}')
@@ -360,12 +359,13 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         if isinstance(error, commands.CommandOnCooldown):
             await ctx.send(
                 "%s você poderá usar este comando de novo."
-                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
+                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=int(error.retry_after)), "R")),
+                delete_after=error.retry_after
+            )
         else:
             await ctx.send(error, delete_after=5)
 
-    @commands.is_owner()
-    @commands.command()
+    @config.command()
     @commands.cooldown(1, 30, commands.BucketType.member)
     async def reload(self, ctx, extension):
         await self.bot.unload_extension(f'base.cmds.{extension}')
@@ -378,12 +378,13 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         if isinstance(error, commands.CommandOnCooldown):
             await ctx.send(
                 "%s você poderá usar este comando de novo."
-                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
+                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")),
+                delete_after=int(error.retry_after-1)
+            )
         else:
             await ctx.send(error, delete_after=5)
 
-    @commands.is_owner()
-    @commands.command()
+    @config.command()
     @commands.cooldown(1, 30, commands.BucketType.member)
     async def unload(self, ctx, extension):
         await self.bot.unload_extension(f'base.cmds.{extension}')
@@ -395,12 +396,13 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         if isinstance(error, commands.CommandOnCooldown):
             await ctx.send(
                 "%s você poderá usar este comando de novo."
-                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
+                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")),
+                delete_after=int(error.retry_after-1)
+            )
         else:
             await ctx.send(error, delete_after=5)
 
-    @commands.is_owner()
-    @commands.command()
+    @config.command()
     @commands.cooldown(1, 300, commands.BucketType.member)
     async def shutdown(self, ctx):
         await ctx.message.delete()
@@ -409,12 +411,9 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
             await self.bot.close()
         except Exception as e:
             await ctx.send("Deu merda aqui em. Melhor ver isso logo...", delete_after=5)
-            raise e
-        else:
-            await self.bot.clear(e)
+            raise (e)
 
-    @commands.has_permissions(administrator=True)
-    @commands.command(name="tsql")
+    @config.command(name="tsql")
     async def tsql(self, ctx, *, sql: str) -> None:
         await ctx.message.delete()
         output = await self.db.fetch(sql)
@@ -425,12 +424,13 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         if isinstance(error, commands.CommandOnCooldown):
             await ctx.send(
                 "%s você poderá usar este comando de novo."
-                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
+                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")),
+                delete_after=int(error.retry_after-1)
+            )
         else:
             await ctx.send(error, delete_after=5)
 
-    @commands.has_permissions(administrator=True)
-    @commands.command(name="tsqlist")
+    @config.command(name="tsqlist")
     async def tsqlist(self, ctx, *, sql: str) -> None:
         await ctx.message.delete()
         output = await self.db.fetchList(sql)
@@ -441,14 +441,15 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         if isinstance(error, commands.CommandOnCooldown):
             await ctx.send(
                 "%s você poderá usar este comando de novo."
-                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")))
+                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")),
+                delete_after=int(error.retry_after-1)
+            )
         else:
             await ctx.send(error, delete_after=5)
 
-    @commands.is_owner()
-    @commands.command(name="sync")
-    @commands.guild_only()
-    async def sync(self, ctx, guilds: commands.Greedy[discord.Object], spec: Optional[Literal["~", "*", "^"]] = None) -> None:
+    @config.command(name="sync")
+    async def sync(self, ctx, guilds: commands.Greedy[discord.Object],
+                   spec: Optional[Literal["~", "*", "^"]] = None) -> None:
         if not guilds:
             if spec == "~":
                 synced = await self.bot.tree.sync(guild=ctx.guild)
@@ -478,33 +479,292 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
 
         await ctx.send(f"Trees sincronizadas em {ret}/{len(guilds)} servidores.")
 
-    @commands.has_permissions(administrator=True)
-    @commands.command(name='setroles')
+    @config.command(name='setroles')
     async def setroles(self, ctx):
         await ctx.message.delete()
         try:
             await starterRoles(self, ctx.message)
         except Exception as e:
-            raise e
+            raise (e)
         else:
             await ctx.send("Cargos definidos.", delete_after=10)
 
     @commands.has_permissions(administrator=True)
-    @commands.command(name='setitens')
+    @config.command(name='setitens')
     async def setitens(self, ctx):
         await ctx.message.delete()
         try:
             await starterItens(self)
         except Exception as e:
-            raise e
+            raise (e)
         finally:
             await ctx.send("Itens criados.", delete_after=10)
+
+    @config.command(name='updateitens')
+    async def updateitens(self, ctx, opt: Optional[
+        Literal[
+            "loja", "*", "molds", "titulos", "util", "banners", "badges", "others"
+        ]
+    ] = None):
+        res = []
+        if not opt:
+            return await ctx.send(
+                "Você precisa adicionar uma opção. \n(loja, *, molds, titulos, util, banners, badges)")
+
+        if opt == "loja":
+            res = await self.shopupdate()
+        elif opt == "banners":
+            res = await self.updatebanners()
+        elif opt == "molds":
+            res = await self.updatemolds()
+        elif opt == "titulos":
+            res = await self.updatetitles()
+        elif opt == "util":
+            res = await self.updateutil()
+        elif opt == "badges":
+            res = await self.updatebadges()
+        elif opt == "others":
+            res = await self.updateothers()
+        elif opt == "*":
+            res.append([
+                await self.updatemolds(),
+                await self.updatebanners(),
+                await self.updatebadges(),
+                await self.updateutil(),
+                await self.updateothers(),
+                await self.shopupdate()
+            ])
+        if isinstance(res, list):
+            for i in res:
+                await ctx.send(i)
+        else:
+            await ctx.send(res)
+
+    async def shopupdate(self):
+        try:
+
+            await self.db.execute("DELETE FROM shop WHERE lvmin >= 0")
+            await self.db.execute(
+                """
+                    INSERT INTO shop(
+                        id, name, value, type_, dest, img, lvmin, item_type_id
+                    )
+                    SELECT id, name, value, type_, dest, img, lvmin, item_type_id
+                    FROM itens WHERE canbuy=true ON CONFLICT (item_type_id) DO NOTHING;
+                """
+            )
+        except Exception as i:
+            return f"Não foi possível atualizar a loja: \n`{i}`"
+        else:
+            return "`A loja foi atualizada com sucesso.`"
+
+    # BANNERS
+    async def updatebanners(self):
+        try:
+            await self.db.execute("DELETE FROM itens WHERE type_=('Banner')")
+            await self.db.execute(
+                """
+                    INSERT INTO itens(
+                        item_type_id, name, img,
+                        img_profile, canbuy, value, type_
+                    )
+                    SELECT id, name, img_loja,
+                        img_perfil, canbuy, value, type_
+                    FROM banners WHERE canbuy=true ON CONFLICT (id) DO NOTHING;
+                """
+            )
+        except Exception as i:
+            return f"Não foi possível atualizar os banners: \n`{i}`"
+        else:
+            return "`Os banners foram atualizados com sucesso.`"
+
+    # MOLDURAS
+    async def updatemolds(self):
+        try:
+            await self.db.execute("DELETE FROM itens WHERE type_=('Moldura')")
+            await self.db.execute(
+                """
+                    INSERT INTO itens(
+                        item_type_id, name, type_, value, lvmin,
+                        img, imgd, img_profile, canbuy, group_, category
+                    )
+                    SELECT id, name, type_, value, lvmin,
+                        img, imgxp, img_profile, canbuy, group_, category
+                    FROM molds ON CONFLICT (id) DO NOTHING;
+                """
+            )
+        except Exception as i:
+            return f"Não foi possível atualizar as molduras: \n`{i}`"
+        else:
+            return "`As molduras foram atualizadas com sucesso.`"
+
+    # TITULOS
+    async def updatetitles(self):
+        try:
+            await self.db.execute("DELETE FROM itens WHERE type_=('Titulo')")
+            await self.db.execute(
+                """
+                    INSERT INTO itens(
+                        item_type_id, name, type_,
+                        img, value, canbuy
+                    )
+                    SELECT id, name, type_,
+                        localimg, value, canbuy
+                    FROM titles WHERE canbuy=True ON CONFLICT (id) DO NOTHING;
+                """
+            )
+        except Exception as i:
+            return f"Não foi possível atualizar os titulos: \n`{i}`"
+        else:
+            return "`Os títulos foram atualizados com sucesso.`"
+
+    # UTILIZÁVEIS
+    async def updateutil(self):
+        try:
+            await self.db.execute("DELETE FROM itens WHERE type_=('Utilizavel')")
+            await self.db.execute(
+                """
+                    INSERT INTO itens(
+                        item_type_id, name, type_,
+                        img, value, canbuy
+                    )
+                    SELECT id, name, type_,
+                        img, value, canbuy
+                    FROM utilizaveis WHERE canbuy=True ON CONFLICT (id) DO NOTHING;
+                """
+            )
+        except Exception as i:
+            return f"Não foi possível atualizar os utilizáveis: \n`{i}`"
+        else:
+            return "`Os utilizáveis foram atualizados com sucesso.`"
+
+    # BADGES
+    async def updatebadges(self):
+        try:
+            await self.db.execute("DELETE FROM itens WHERE type_=('Badge')")
+            await self.db.execute(
+                """
+                    INSERT INTO itens(
+                        item_type_id, name, 
+                        type_, img, value, lvmin, 
+                        canbuy, group_, category
+                    )
+                    SELECT id, name, type_,
+                        img, value, lvmin, 
+                        canbuy, group_, category
+                    FROM badges ON CONFLICT (id) DO NOTHING;
+                """
+            )
+        except Exception as i:
+            return f"Não foi possível atualizar as badges: \n`{i}`"
+        else:
+            return "`As badges foram atualizadas com sucesso.`"
+
+    async def updateothers(self):
+        try:
+
+            badges_staff = 'src/imgs/badges/equipe/'
+            for e in os.listdir(badges_staff):
+                if e.endswith('.png'):
+                    print(str(e[:-4].title()))
+                    print(badges_staff + e)
+                    await self.db.execute(
+                        """
+                            INSERT INTO badges (
+                                name, 
+                                img, 
+                                canbuy, 
+                                value, 
+                                type_, 
+                                group_, 
+                                category
+                            )
+                            VALUES (\'%s\', \'%s\', %s, %s, \'%s\', \'%s\', \'%s\') ON CONFLICT (name) DO NOTHING
+                        """ % (
+                            str(e[:-4]).title(),
+                            str(badges_staff + e),
+                            False,
+                            99999999,
+                            "Badge",
+                            "equipe",
+                            "Lendário"
+                        )
+                    )
+
+            badges_supporter = 'src/imgs/badges/supporter/'
+            for e in os.listdir(badges_supporter):
+                if e.endswith('.png'):
+                    print(str(e[:-4].title()))
+                    print(badges_supporter + e)
+                    await self.db.execute(
+                        """
+                            INSERT INTO badges (
+                                name, 
+                                img, 
+                                canbuy, 
+                                value, 
+                                type_, 
+                                group_, 
+                                category
+                            )
+                            VALUES (\'%s\', \'%s\', %s, %s, \'%s\', \'%s\', \'%s\') ON CONFLICT (name) DO NOTHING 
+                        """ % (
+                            str(e[:-4].title()),
+                            str(badges_supporter + e),
+                            False,
+                            99999999,
+                            "Badge",
+                            "apoiador",
+                            "Lendário"
+                        )
+                    )
+
+        except Exception as e:
+            return (f"Não foi possível atualizar outros itens: \n`{e}`")
+        else:
+            return ("`Outros itens também foram atualizado.`")
+
+
+    # async def FindItemTypes(self):
+    #     x = await self.db.fetch("""
+    #         SELECT type_, string_agg('[' || item_type_id || ', ' || type_ || ', ' || name || ', ' || value || ']', ', ')
+    #             FROM itens
+    #             GROUP BY type_;
+    #     """)
+    #     if not x:
+    #         return False
+    #
+    #     z = [list(map(str.strip, u'{v[1]}'.strip('][').strip('][').replace("'", "").split(','))) for v in x]
+    #     # z = [list(map(str.strip, json.loads(u'%s' % v[1]))) for v in x]
+    #     types_ = [k[0] for k in x]
+    #
+    #     print(types_, z[0])
+    #     return types_, z[0]
+
+    @commands.command(name='showitens')
+    async def showitens(self, ctx):
+        items = await self.FindItemTypes()
+
+        if not items:
+            return await ctx.send("Não encontrei um item com esse id.")
+
+        emb = discord.Embed(
+            title="Itens",
+            description="Aqui estão listados todos os itens cadastrados."
+        ).color = 0x006400
+
+        items_ = []
+        for i, value in enumerate(items):
+            items_.append(items[1])
+
+        await ctx.send(items_)
+
 
     @commands.command(name='ranking')
     async def ranking(self, ctx, opt: Optional[Literal["Ori", "Nivel"]]):
         await ctx.message.delete()
 
-        profile_bytes = await get_userAvatar_func()
+        profile_bytes = await get_userAvatar_func(ctx.author)
 
         if not opt:
             opt = "Nivel"
@@ -536,7 +796,8 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
                         user = "Desconhecido#0000"
                         avatar = "src/imgs/extra/spark.png"
 
-                    rank_image = await self.db.fetch(f"SELECT badges FROM ranks WHERE lv <= {rows[count][1]} ORDER BY lv Desc LIMIT 1")
+                    rank_image = await self.db.fetch(
+                        f"SELECT badges FROM ranks WHERE lv <= {rows[count][1]} ORDER BY lv Desc LIMIT 1")
                     if rank_image:
                         users.append({count: {
                             "avatar_url": str(avatar),
@@ -547,296 +808,16 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
                         }})
 
                     count += 1
-            except Exception:
-                raise
+            except Exception as e:
+                raise (e)
+
         async with ctx.channel.typing():
-            buffer = await utilities.topcard.topdraw(ctx.author.id, users, user_position, BytesIO(profile_bytes))
+            buffer = await self.bot.loop.run_in_executor(
+                None,
+                utilities.topcard.topdraw,
+                ctx.author.id, users, user_position, BytesIO(profile_bytes)
+            )
         await ctx.send(file=dFile(fp=buffer, filename='ranking.png'))
-
-    @commands.command(name='updateitens')
-    @commands.has_permissions(administrator=True)
-    async def updateitens(self, ctx, opt: Optional[
-        Literal[
-            "loja", "*", "molds", "titulos", "util", "banners", "badges", "others"
-        ]
-    ] = None):
-        res = []
-        if not opt:
-            return await ctx.send("Você precisa adicionar uma opção. \n(loja, *, molds, titulos, util, banners, badges)")
-
-        if opt == "loja":
-            res = await self.shopupdate()
-        elif opt == "banners":
-            res = await self.updatebanners()
-        elif opt == "molds":
-            res = await self.updatemolds()
-        elif opt == "titulos":
-            res = await self.updatetitles()
-        elif opt == "util":
-            res = await self.updateutil()
-        elif opt == "badges":
-            res = await self.updatebadges()
-        elif opt == "others":
-            res = await self.updateothers()
-        elif opt == "*":
-            res.append([
-                            await self.updatemolds(),
-                            await self.updatebanners(),
-                            await self.updatebadges(),
-                            await self.updateutil(),
-                            await self.updateothers(),
-                            await self.shopupdate()
-                        ])
-        if isinstance(res, list):
-            for i in res:
-                await ctx.send(i)
-        else:
-            await ctx.send(res)
-
-    async def shopupdate(self):
-        try:
-
-            await self.db.execute("DELETE FROM shop WHERE lvmin >= 0")
-            await self.db.execute("""
-				INSERT INTO shop(
-					id, name, value, type_, dest, img, lvmin, item_type_id
-				)
-				SELECT id, name, value, type_, dest, img, lvmin, item_type_id
-				FROM itens WHERE canbuy=true ON CONFLICT (item_type_id) DO NOTHING;
-			""")
-        except Exception as i:
-            return (f"Não foi possível atualizar a loja: \n`{i}`")
-        else:
-            return ("`A loja foi atualizada com sucesso.`")
-
-    # BANNERS
-    async def updatebanners(self):
-        try:
-            await self.db.execute("DELETE FROM itens WHERE type_=('Banner')")
-            await self.db.execute("""
-				INSERT INTO itens(
-					item_type_id, name, img,
-					img_profile, canbuy, value, type_
-				)
-				SELECT id, name, img_loja,
-					img_perfil, canbuy, value, type_
-				FROM banners WHERE canbuy=true ON CONFLICT (id) DO NOTHING;
-			""")
-        except Exception as i:
-            return (f"Não foi possível atualizar os banners: \n`{i}`")
-        else:
-            return ("`Os banners foram atualizados com sucesso.`")
-
-    # MOLDURAS
-    async def updatemolds(self):
-        try:
-            await self.db.execute("DELETE FROM itens WHERE type_=('Moldura')")
-            await self.db.execute("""
-				INSERT INTO itens(
-					item_type_id, name, type_, value, lvmin,
-					img, imgd, img_profile, canbuy, group_, category
-				)
-				SELECT id, name, type_, value, lvmin,
-					img, imgxp, img_profile, canbuy, group_, category
-				FROM molds ON CONFLICT (id) DO NOTHING;
-			""")
-        except Exception as i:
-            return (f"Não foi possível atualizar as molduras: \n`{i}`")
-        else:
-            return ("`As molduras foram atualizadas com sucesso.`")
-
-    # TITULOS
-    async def updatetitles(self):
-        try:
-            await self.db.execute("DELETE FROM itens WHERE type_=('Titulo')")
-            await self.db.execute("""
-				INSERT INTO itens(
-					item_type_id, name, type_,
-					img, value, canbuy
-				)
-				SELECT id, name, type_,
-					localimg, value, canbuy
-				FROM titles WHERE canbuy=True ON CONFLICT (id) DO NOTHING;
-			""")
-        except Exception as i:
-            return (f"Não foi possível atualizar os titulos: \n`{i}`")
-        else:
-            return ("`Os títulos foram atualizados com sucesso.`")
-
-    # UTILIZÁVEIS
-    async def updateutil(self):
-        try:
-            await self.db.execute("DELETE FROM itens WHERE type_=('Utilizavel')")
-            await self.db.execute("""
-				INSERT INTO itens(
-					item_type_id, name, type_,
-					img, value
-				)
-				SELECT id, name, type_,
-					img, value
-				FROM utilizaveis WHERE canbuy=True ON CONFLICT (id) DO NOTHING;
-			""")
-        except Exception as i:
-            return (f"Não foi possível atualizar os utilizáveis: \n`{i}`")
-        else:
-            return ("`Os utilizáveis foram atualizados com sucesso.`")
-
-    # BADGES
-    async def updatebadges(self):
-        try:
-            await self.db.execute("DELETE FROM itens WHERE type_=('Badge')")
-            await self.db.execute("""
-				INSERT INTO itens(
-					item_type_id, name, 
-					type_, img, value, lvmin, 
-					canbuy, group_, category
-				)
-				SELECT id, name, type_,
-					img, value, lvmin, 
-					canbuy, group_, category
-				FROM badges ON CONFLICT (id) DO NOTHING;
-			""")
-        except Exception as i:
-            return (f"Não foi possível atualizar as badges: \n`{i}`")
-        else:
-            return ("`As badges foram atualizadas com sucesso.`")
-
-    async def updateothers(self):
-        try:
-
-            badges_staff = 'src/imgs/badges/equipe/'
-            for e in os.listdir(badges_staff):
-                if e.endswith('.png'):
-                    print(str(e[:-4].title()))
-                    print(badges_staff + e)
-                    await self.db.execute(
-                        """
-                            INSERT INTO badges (
-                                name, 
-                                img, 
-                                canbuy, 
-                                value, 
-                                type_, 
-                                group_, 
-                                category
-                            )
-                            VALUES (\'%s\', \'%s\', %s, %s, \'%s\', \'%s\', \'%s\') ON CONFLICT (name) DO NOTHING
-                        """ % ( 
-                            str(e[:-4]).title(), 
-                            str(badges_staff + e), 
-                            False, 
-                            99999999, 
-                            "Badge", 
-                            "equipe", 
-                            "Lendário"
-                        )
-                    )
-
-
-            badges_supporter = 'src/imgs/badges/supporter/'
-            for e in os.listdir(badges_supporter):
-                if e.endswith('.png'):
-                    print(str(e[:-4].title()))
-                    print(badges_supporter + e)
-                    await self.db.execute(
-                        """
-                            INSERT INTO badges (
-                                name, 
-                                img, 
-                                canbuy, 
-                                value, 
-                                type_, 
-                                group_, 
-                                category
-                            )
-                            VALUES (\'%s\', \'%s\', %s, %s, \'%s\', \'%s\', \'%s\') ON CONFLICT (name) DO NOTHING 
-                        """ % ( 
-                            str(e[:-4].title()), 
-                            str(badges_supporter + e),
-                            False, 
-                            99999999, 
-                            "Badge", 
-                            "apoiador", 
-                            "Lendário"
-                        )
-                    )
-
-        except Exception as e:
-            return (f"Não foi possível atualizar outros itens: \n`{e}`")
-        else:
-            return ("`Outros itens também foram atualizado.`")
-
-    @commands.command(name='itens')
-    async def getitens(
-        self, 
-        ctx,
-        opt:
-           Optional[
-               Literal[
-                "Moldura", 
-                "Titulo", 
-                "Utilizavel", 
-                "Banner", 
-                "Badges", 
-                "Carro"
-               ]
-           ] = None
-        ):
-
-        user_id = ctx.author.id
-        user_itens = await user_inventory(self, user_id, 'get', [str(opt)])
-        await ctx.send(user_itens)
-        await ctx.message.delete()
-
-    @commands.command(name='give')
-    async def give(self, ctx, item_id, member: discord.Member = None):
-        if not member:
-            member = ctx.author
-
-        item = await self.db.fetch("""
-            SELECT item_type_id, type_, name FROM itens 
-                WHERE id=(
-                    %s
-                )
-            """ % (item_id, ))
-        if not item:
-            return await ctx.send("Não encontrei um item com esse id.")
-        item_id_uui, ivent_key_name, ivent_name = item[0][0], item[0][1], item[0][2]
-
-        res = await user_inventory(self, member.id, 'add', [str(ivent_key_name)], [item_id_uui])
-        await ctx.send(res)
-
-    async def FindItemTypes(self):
-        x = await self.db.fetch("""
-            SELECT type_, string_agg('[' || item_type_id || ', ' || type_ || ', ' || name || ', ' || value || ']', ', ')
-                FROM itens
-                GROUP BY type_;
-        """)
-        if not x:
-            return False
-
-        z = [list(map(str.strip, u'{v[1]}'.strip('][').strip('][').replace("'", "").split(','))) for v in x]
-        # z = [list(map(str.strip, json.loads(u'%s' % v[1]))) for v in x]
-        types_ = [k[0] for k in x]
-
-        print(types_, z[0])
-        return types_, z[0]
-
-    @commands.command(name='showitens')
-    async def showitens(self, ctx):
-        items = await self.FindItemTypes()
-
-        if not items:
-            return await ctx.send("Não encontrei um item com esse id.")
-
-        emb = discord.Embed(
-            title="Itens", description="Aqui estão listados todos os itens cadastrados.").color = 0x006400
-
-        items_ = []
-        for i, value in enumerate(items):
-            items_.append(items[1])
-
-        await ctx.send(items_)
 
 
 async def setup(bot: commands.Bot) -> None:

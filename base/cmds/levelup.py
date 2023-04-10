@@ -46,7 +46,7 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
                 await self.db.execute("""
                         INSERT INTO iventory ( iventory_id, itens ) VALUES ( \'%s\',  '%s' );
                     """ % ( user_infos[0][4],
-                        '{"Carro": {"ids": []}, "Badge": {"rank": [], "equipe": [], "moldura": [], "apoiador": []}, "Banner": {"ids": {}}, "Moldura": {"ids": []}, "Utilizavel": {"ids": []}}', 
+                        '{"Badge": {"rank": {"ids": {}}, "equipe": {"ids": {}}, "moldura": {"ids": {}}, "apoiador": {"ids": {}}}, "Carro": {"ids": {}}, "Banner": {"ids": {}}, "Moldura": {"rank": {"ids": {}}, "equipe": {"ids": {}}, "moldura": {"ids": {}}, "apoiador": {"ids": {}}}, "Utilizavel": {"ids": {}}}', 
                     )
                 )
                 current_xp = 0
@@ -55,7 +55,7 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
             if user_infos[0][0] >= 80:
                 return
             
-            self.lvUpChannel = self.bot.get_channel(1009074998889164880)
+            lvUpChannel = self.bot.get_channel(1009074998889164880)
             spark = randint(self.cfg.coinsmin, self.cfg.coinsmax)
             # result = await self.db.fetch(f"SELECT rank, xp, xptotal FROM users WHERE id=('{aId}')")
             expectedXP = randint(self.cfg.min_message_xp,
@@ -73,7 +73,7 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
 
                     rank = up[0][0]
 
-                    await self.lvUpChannel.send(
+                    await lvUpChannel.send(
                         "> %s__, você subiu para o nível %s!__ \n> `+%s sparks +%s pontos de experiência.`"
                         % (message.author.mention, rank, spark, expectedXP, ), delete_after=10)
 
@@ -107,11 +107,13 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
 
                     except Exception as i:
                         if isinstance(i, MissingPermissions):
-                            return await self.lvUpChannel.send("> %s `Eu não tenho permissão para adicionar/remover cargos, reporte à um ADM.`"
-                                                               % (message.author.mention, ))
+                            return await lvUpChannel.send(
+                                "> %s `Eu não tenho permissão para adicionar/remover cargos, reporte à um ADM.`"
+                                % (message.author.mention, ))
                         elif isinstance(i, RoleNotFound):
-                            return await self.lvUpChannel.send("> %s `Não consegui encontrar o cargo, favor, reporte à um ADM.`"
-                                                               % (message.author.mention, ))
+                            return await lvUpChannel.send(
+                                "> %s `Não consegui encontrar o cargo, favor, reporte à um ADM.`"
+                                % (message.author.mention, ))
                         else:
                             raise i
                     # else:

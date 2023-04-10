@@ -29,9 +29,9 @@ CREATE TABLE IF NOT EXISTS public.iventory (
     itens text,
     car uuid,
     title uuid,
-    mold uuid,
+    moldura uuid,
     banner uuid,
-    badge text
+    badge text DEFAULT '{}'
 );
 
 CREATE TABLE IF NOT EXISTS public.ranks (

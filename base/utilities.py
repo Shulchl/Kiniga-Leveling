@@ -10,7 +10,6 @@ from lib2to3.pytree import convert
 from typing import Any, Optional
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 from base.struct import Config
-from base.db.pgUtils import print_psycopg2_exception as pycopg_exception
 
 import line_profiler
 
@@ -32,15 +31,13 @@ class UUIDEncoder(json.JSONEncoder):
 
 
 try:
-    basePath = '.'
-    path = os.path.abspath(os.path.join(basePath, '_temp'))
+    _path = os.path.abspath('_temp')
 
-    isExist = os.path.exists(path)
+    isExist = os.path.exists(_path)
     if not isExist:
-        os.mkdir(path)
-    pathMonserrat = os.path.abspath(
-        os.path.join(basePath, 'src/fonts/Montserrat/'))
-    pathOpen = os.path.abspath(os.path.join(basePath, 'src/fonts/Opensans/'))
+        os.mkdir(_path)
+    pathMonserrat = os.path.abspath('src/fonts/Montserrat/')
+    pathOpen = os.path.abspath('src/fonts/Opensans/')
 
     if not os.path.exists(pathMonserrat):
         print("Não consegui encontrar o caminho para %s" % (pathMonserrat))
@@ -63,6 +60,7 @@ class Database:
         self.user = self.cfg.postgresql_user
         self.password = self.cfg.postgresql_password
         self.host = self.cfg.postgresql_host
+
         loop.create_task(self.connect())
 
     #@retry(stop=stop_after_attempt(4), before_sleep=my_before_sleep)
@@ -91,7 +89,7 @@ class Database:
                         
             else:
                 # pass exception to function
-                pycopg_exception(err)
+                print(err)
 
             await conn.close()
 
@@ -113,13 +111,10 @@ class Database:
 
 
     async def fetch(self, sql: str, *args: Any) -> list:
-        try:
-            async with self.pool.acquire() as conn:
-                async with conn.transaction():
-                    result = await conn.fetch(sql, *args)
-            return result
-        except Exception as err:
-            pycopg_exception(err)
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                result = await conn.fetch(sql, *args)
+        return result
 
     async def fetchval(self, sql: str, *args: Any) -> list:
         async with self.pool.acquire() as conn:
@@ -140,14 +135,10 @@ class Database:
         return result
 
     async def execute(self, sql: str, *args: Any) -> None:
-        try:
-            async with self.pool.acquire() as conn:
-                async with conn.transaction():
-                    result = await conn.execute(sql, *args)
-            return result
-
-        except Exception as err:
-            pycopg_exception(err)
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                result = await conn.execute(sql, *args)
+        return result
 
 
 # GRANDIENT
@@ -437,11 +428,28 @@ class Rank:
 
         return bg
 
-    def draw(self, user: str, userRank: str, userXp: str, titleImg: str,
-             moldName: str, moldImage: str, moldRounded: str, userInfo: str,
-             userSpark: int, userBirth: str, staff: None, rankName, rankR: str,
-             rankG: str, rankB: str, rankImgxp, profile_bytes: BytesIO
-             ) -> BytesIO:
+    def draw(
+        self, 
+        user: str, 
+        userRank: str, 
+        userXp: str, 
+        titleImg: str,
+        moldName: str, 
+        moldImage: str, 
+        moldRounded: str, 
+        userInfo: str,
+        
+        userSpark: int, 
+        userBirth: str, 
+        staff: None, 
+        rankName, 
+        rankR: str,
+        
+        rankG: str, 
+        rankB: str, 
+        rankImgxp, 
+        profile_bytes: BytesIO
+     ) -> BytesIO:
 
         profile_bytes = Image.open(profile_bytes)
 
@@ -722,11 +730,23 @@ class Rank:
 
         return buffer
 
-    def draw_new(self, user: str, badge_images, banner: str,
-                 moldImage: str, userInfo: str,
-                 userSpark: int, userOri: int, userBirth: str, staff: None, rankName, rankR: str,
-                 rankG: str, rankB: str, profile_bytes: BytesIO
-                 ) -> BytesIO:
+    def draw_new(
+        self, 
+        user: str, 
+        badge_images, 
+        banner: str,
+        moldImage: str, 
+        userInfo: str,
+        userSpark: int, 
+        userOri: int, 
+        userBirth: str, 
+        staff: None, 
+        rankName, 
+        rankR: str,
+        rankG: str, 
+        rankB: str,
+        profile_bytes: BytesIO
+     ) -> BytesIO:
 
         profile_bytes = Image.open(profile_bytes)
 
@@ -763,7 +783,7 @@ class Rank:
         #    (0, 420, 1280, 1280 + 420))
         mask = Image.new("L", (bg.size), 90)
 
-    # BORDA DO CARALHO
+        # BORDA DO CARALHO
         ma = Image.open(
             "src/imgs/extra/perfil/Discord-Border.png").convert("L")
 
@@ -847,7 +867,7 @@ class Rank:
                 bg_draw.ellipse([prof_elipse, 188, user_border],
                                 fill=(cor))
 
-    # BADGES
+        # BADGES
         if len(badge_images) > 0:
             count = 0
             inic_larg = int(banner.size[0] - 150)
@@ -884,7 +904,7 @@ class Rank:
             # update the y position so that we can use it for next line
             y = y + line_height + 15
 
-    # spark
+        # spark
         bg_draw.rounded_rectangle(
             [(35, int(1280-524)), (int(1280-840), int(1280-387))], 25, fill=(0, 45, 62))  # spark
 
@@ -897,7 +917,7 @@ class Rank:
         bg_draw.text((170, int(1280-458)), value,
                      font=self.class_font_bold_ori_bday, fill=(219, 239, 255))
 
-    # ori
+        # ori
         bg_draw.rounded_rectangle(
             [(35, int(1280-352)), (int(1280-840), int(1280-215))], 25, fill=(0, 53, 49))  # ori
 
@@ -910,7 +930,7 @@ class Rank:
         bg_draw.text((170, int(1280-285)), value,
                      font=self.class_font_bold_ori_bday, fill=(0, 247, 132))
 
-    # Bday
+        # Bday
         bg_draw.rounded_rectangle(
             [(35, int(1280-178)), (int(1280-840), int(1280-40))], 25, fill=(54, 46, 59))  # Bday
 
@@ -934,7 +954,7 @@ class Rank:
         bg_draw.text((int(170), int(1280-110)), userBirth,
                      font=self.class_font_bold_ori_bday, fill=(214, 83, 96))
 
-    # CARS
+        # CARS
         cars_position = 525
         car_border = (187, 165, 16)
         cars_bg = [(37, 62, 52)]
@@ -986,9 +1006,17 @@ class Rank:
 
         return buffer
 
-    def rank(self, rank: str, xp: str, xptotal: str,
-             moldName: str, moldImg: str, imgxp: str,
-             profile_bytes) -> BytesIO:
+    def rank(
+        self, 
+        rank: str, 
+        xp: str, 
+        xptotal: str,
+        moldName: str, 
+        moldImg: str, 
+        imgxp: str,
+        profile_bytes
+    ) -> BytesIO:
+
         profile_bytes = Image.open(str(profile_bytes))
         profile_bytes_imenso = profile_bytes.copy()
 
@@ -1102,169 +1130,188 @@ class Rank:
         lendCat_image = Image.open(
             "src/imgs/extra/inventario/Loja-Lendario.png")
 
-        total_page = total/6 if total/6 == int() else int(total/6+0.5)
+        total_page = total/12 if total/12 == int() else int(total/12+0.9)
 
         images = []
         count = 0
-        for i in range(total_page):
 
-            plain = Image.new('RGBA', (1280, 1280), (0, 45, 62, 255))
-            banner = Image.open(banner)
+        if total_page > 12:
+            total_page = total_page+1
+        print(total_page)
 
-            banner_Big = banner.resize((1280+630, 650+630))
-            banner_Big = banner_Big.crop((300, 0, 1580, 1280))
-            mask = Image.new("L", banner_Big.size, 90)
+        try:
+            for i in range(total_page):
 
-            bannerFundo = Image.composite(banner_Big, plain, mask)
-            bannerBlur = bannerFundo.filter(
-                ImageFilter.GaussianBlur(radius=10))
+                plain = Image.new('RGBA', (1280, 1280), (0, 45, 62, 255))
+                banner_ = Image.open(banner)
+                banner_Big = banner_.resize((1280+630, 650+630))
+                banner_Big = banner_Big.crop((300, 0, 1580, 1280))
+                mask = Image.new("L", banner_Big.size, 90)
 
-            plain.paste(bannerBlur, (0, 0))
-            bg_draw = ImageDraw.Draw(plain)
+                bannerFundo = Image.composite(banner_Big, plain, mask)
+                bannerBlur = bannerFundo.filter(
+                    ImageFilter.GaussianBlur(radius=10))
 
-        # SHOPING TITLE
-            plain.paste(icon, (45, 80), icon)
-            bg_draw.text((115, 75), "INVENTÁRIO", font=self.montserrat_extrabold_loja,
-                         anchor="la", fill=(219, 239, 255))
+                plain.paste(bannerBlur, (0, 0))
+                bg_draw = ImageDraw.Draw(plain)
 
-        # SHOPING COINS
+            # SHOPING TITLE
+                plain.paste(icon, (45, 80), icon)
+                bg_draw.text((115, 75), "INVENTÁRIO", font=self.montserrat_extrabold_loja,
+                             anchor="la", fill=(219, 239, 255))
 
-            # SPARK AREA
-            bg_draw.rounded_rectangle(
-                [(695, 50), (959, 140)], 22, fill=(0, 45, 62))
+            # SHOPING COINS
 
-            bg_draw.text((770, 60), "Sparks",
-                         font=self.montserrat_medium_coins, fill=(153, 177, 191))
+                # SPARK AREA
+                bg_draw.rounded_rectangle(
+                    [(695, 50), (959, 140)], 22, fill=(0, 45, 62))
 
-            spark_value = f"{int(spark):,}".replace(",", ".")
-            bg_draw.text((770, 90), spark_value,
-                         font=self.montserrat_bold_coins, fill=(219, 239, 255))
+                bg_draw.text((770, 60), "Sparks",
+                             font=self.montserrat_medium_coins, fill=(153, 177, 191))
 
-            # ORI AREA
-            bg_draw.rounded_rectangle(
-                [(985, 50), (1249, 140)], 22, fill=(0, 53, 49))
+                spark_value = f"{int(spark):,}".replace(",", ".")
+                bg_draw.text((770, 90), spark_value,
+                             font=self.montserrat_bold_coins, fill=(219, 239, 255))
 
-            bg_draw.text((1065, 60), "Oris",
-                         font=self.montserrat_medium_coins, fill=(203, 246, 228))
+                # ORI AREA
+                bg_draw.rounded_rectangle(
+                    [(985, 50), (1249, 140)], 22, fill=(0, 53, 49))
 
-            ori_value = f"{int(ori):,}".replace(",", ".")
+                bg_draw.text((1065, 60), "Oris",
+                             font=self.montserrat_medium_coins, fill=(203, 246, 228))
 
-            bg_draw.text((1065, 90), ori_value,
-                         font=self.montserrat_bold_coins, fill=(0, 247, 132))
+                ori_value = f"{int(ori):,}".replace(",", ".")
 
-            # IMAGES
-            spark_img = spark_img.resize((70, 80), Image.Resampling.NEAREST)
-            plain.paste(spark_img, (700, 55), spark_img)
+                bg_draw.text((1065, 90), ori_value,
+                             font=self.montserrat_bold_coins, fill=(0, 247, 132))
 
-            ori_img = ori_img.resize((67, 67), Image.Resampling.NEAREST)
-            plain.paste(ori_img, (993, 58), ori_img)
+                # IMAGES
+                spark_img = spark_img.resize((70, 80), Image.Resampling.NEAREST)
+                plain.paste(spark_img, (700, 55), spark_img)
 
-        # FOOTER
-            # PAGE AREA
-            bg_draw.text((630, 1240), "Página",
-                         font=self.montserrat_semibold, anchor="md", fill=(0, 247, 132))
+                ori_img = ori_img.resize((67, 67), Image.Resampling.NEAREST)
+                plain.paste(ori_img, (993, 58), ori_img)
 
-            bg_draw.text((700, 1240), "%s" % (i+1, ),
-                         font=self.montserrat_extrabold_pageNumb, anchor="md", fill=(0, 247, 132))
+            # FOOTER
+                # PAGE AREA
+                bg_draw.text((630, 1240), "Página",
+                             font=self.montserrat_semibold, anchor="md", fill=(0, 247, 132))
 
-        # PAGE CREATE LOOP
-            ccount = 0
-            tcount = 1
-            try:
-                largura = 0
-                altura = 195
-                for t in range(12):
-                    if count >= total:
-                        break
-                    list_itens = list(items[count].values())
+                bg_draw.text((700, 1240), "%s" % (i+1, ),
+                             font=self.montserrat_extrabold_pageNumb, anchor="md", fill=(0, 247, 132))
 
-                    itemImg = Image.open(
-                        list_itens[0]['img']).convert("RGBA")
-                    if str(list_itens[0]['type']) == "Banner":
+            # PAGE CREATE LOOP
+                ccount = 0
+                tcount = 1
 
-                        itemImg = itemImg.resize(
-                            (235, 105), Image.Resampling.NEAREST)
-                        itemImg = self.add_corners(itemImg, 20)
+                try:
+                    largura = 0
+                    altura = 195
+                    for t in range(12):
+                        if count >= total:
+                            break
+                        list_itens = list(items[count].values())
 
-                    elif str(list_itens[0]['type']) == "Utilizavel":
-                        itemImg = itemImg.resize(
-                            (128, 128), Image.Resampling.NEAREST)
+                        itemImg = Image.open(
+                            list_itens[0]['img']).convert("RGBA")
+                        if str(list_itens[0]['type']) == "Banner":
 
-                    elif str(list_itens[0]['type']) == "Badge":
-                        itemImg = itemImg.resize(
-                            (int(itemImg.size[0]/2.5), int(itemImg.size[1]/2.5)), Image.Resampling.NEAREST)
-                    elif str(list_itens[0]['type']) == "Titulo":
-                        pass
-                    else:
+                            itemImg = itemImg.resize(
+                                (235, 105), Image.Resampling.NEAREST)
+                            itemImg = self.add_corners(itemImg, 20)
+
+                        elif str(list_itens[0]['type']) == "Utilizavel":
+                            itemImg = itemImg.resize(
+                                (128, 128), Image.Resampling.NEAREST)
+
+                        elif str(list_itens[0]['type']) == "Badge":
+                            itemImg = itemImg.resize(
+                                (
+                                    int(itemImg.size[0]/2.5), 
+                                    int(itemImg.size[1]/2.5)
+                                ), 
+                                Image.Resampling.NEAREST
+                            )
+
+                        elif str(list_itens[0]['type']) == "Titulo":
+                            pass
+                        else:
+                            lar = (itemImg.size[0], itemImg.size[1])
+                            itemImg = itemImg.resize(
+                                (int(itemImg.size[0]/2.5), int(itemImg.size[1]/2.5)), Image.Resampling.NEAREST)
+
+                        if list_itens[0]['category'] == "Comum":
+                            img = comumCat_image
+                        elif list_itens[0]['category'] == "Raro":
+                            img = raroCat_image
+                        elif list_itens[0]['category'] == "Lendário":
+                            img = lendCat_image
+                        else:
+                            img = comumCat_image
+
                         lar = (itemImg.size[0], itemImg.size[1])
-                        itemImg = itemImg.resize(
-                            (int(itemImg.size[0]/2.5), int(itemImg.size[1]/2.5)), Image.Resampling.NEAREST)
 
-                    if list_itens[0]['category'] == "Comum":
-                        img = comumCat_image
-                    elif list_itens[0]['category'] == "Raro":
-                        img = raroCat_image
-                    elif list_itens[0]['category'] == "Lendário":
-                        img = lendCat_image
-                    else:
-                        img = comumCat_image
+                        # print(list_itens)
 
-                    lar = (itemImg.size[0], itemImg.size[1])
+                        if largura > 660:
+                            ccount = 0
+                            tcount += 1
+                            altura = int((img.size[0] - 18) * tcount)
+                            if altura == 777:
+                                altura+=64
 
-                    # print(list_itens)
+                        largura = ((img.size[0] + 35) * ccount) + \
+                            (35 if ccount == 0 else 35)
 
-                    if largura > 1200:
-                        ccount = 0
-                        tcount += 1
-                        altura = int((img.size[0] - 18) * tcount)
+                        if altura > 1280:
+                            break
 
-                    largura = ((img.size[0] + 35) * ccount) + \
-                        (35 if ccount == 0 else 35)
+                    # ROW BACKGROUND IMAGE 1
+                        plain.paste(img, (largura, altura), img)
 
-                    if altura > 1280:
-                        break
+                        # ROW ITEM IMAGE 1
+                        plain.paste(
+                            itemImg, (int(largura + int((img.size[0] - lar[0])/2)),
+                                      int(altura + int((img.size[1] - lar[1])/2)) - 40), itemImg)
+                    # TEXTS
+                        # ITEM TYPE
+                        bg_draw.text((90 + largura, altura),
+                                     list_itens[0]['type'], fill=(0, 45, 62), anchor="ma", font=self.montserrat_bold_type)
 
-                # ROW BACKGROUND IMAGE 1
-                    plain.paste(img, (largura, altura), img)
+                        # ITEM NAME
+                        bg_draw.text((int(largura + int((img.size[0]/2))),
+                                      int(altura + int((img.size[1]/2))) + 50),
+                                     list_itens[0]['name'], fill=(215, 235, 251), anchor="ma",
+                                     font=self.montserrat_bold_name)
 
-                    # ROW ITEM IMAGE 1
-                    plain.paste(
-                        itemImg, (int(largura + int((img.size[0] - lar[0])/2)),
-                                  int(altura + int((img.size[1] - lar[1])/2)) - 40), itemImg)
-                # TEXTS
-                    # ITEM TYPE
-                    bg_draw.text((90 + largura, altura),
-                                 list_itens[0]['type'], fill=(0, 45, 62), anchor="ma", font=self.montserrat_bold_type)
+                        # ITEM EQUIP
+                        bg_draw.text((int(largura + int((img.size[0]/2))),
+                                      int(altura + int((img.size[1]/2))) + 103),
+                                     "/equipar %s" % (list_itens[0]['id'], ), fill=(0, 45, 62), anchor="ma",
+                                     font=self.montserrat_extrabolditalic_equip)
 
-                    # ITEM NAME
-                    bg_draw.text((int(largura + int((img.size[0]/2))),
-                                  int(altura + int((img.size[1]/2))) + 50),
-                                 list_itens[0]['name'], fill=(215, 235, 251), anchor="ma",
-                                 font=self.montserrat_bold_name)
+                        ccount += 1
+                        count += 1
+                except Exception as a:
+                    print(a)
+                    raise a
+                plain = plain.convert('RGB')
+                try:
+                    u = uuid.uuid4().hex
 
-                    # ITEM EQUIP
-                    bg_draw.text((int(largura + int((img.size[0]/2))),
-                                  int(altura + int((img.size[1]/2))) + 103),
-                                 "/equipar %s" % (list_itens[0]['id'], ), fill=(0, 45, 62), anchor="ma",
-                                 font=self.montserrat_extrabolditalic_equip)
+                    plain.save(f'{os.path.join("_temp", u)}.jpg',
+                               'JPEG')  # optimize=True
+                    # buffer.seek(0)
 
-                    ccount += 1
-                    count += 1
-            except Exception as a:
-                raise a
-            plain = plain.convert('RGB')
-            try:
-                u = uuid.uuid4().hex
-
-                plain.save(f'{os.path.join(path, u)}.jpg',
-                           'JPEG')  # optimize=True
-                # buffer.seek(0)
-
-            except Exception as i:
-                raise i
-            else:
-                images.append(f"{u}.jpg")
-        return images
+                except Exception as i:
+                    print(i)
+                    raise i
+                else:
+                    images.append(f"{u}.jpg")
+            return images
+        except Exception as f:
+            print(f)
+            raise f
 
     @staticmethod
     def neededxp(level: str) -> int:
@@ -1273,7 +1320,6 @@ class Rank:
 
 class shopNew:
     def __init__(self) -> None:
-
         # "LOJA"
         self.montserrat_extrabold_loja = ImageFont.truetype(
             os.path.join(pathMonserrat, 'MontserratExtraBold.ttf'), 50
@@ -1338,228 +1384,232 @@ class shopNew:
         return output
 
     def drawloja(self, total, spark, ori, items, banner=None) -> BytesIO:
-        spark_img = Image.open("src/imgs/extra/Spark.png")
-        ori_img = Image.open("src/imgs/extra/Ori.png")
-        shopCar_img = Image.open(
-            "src/imgs/extra/loja/Carrinho-Loja-Colorido.png")
+        try:
+            spark_img = Image.open("src/imgs/extra/Spark.png")
+            ori_img = Image.open("src/imgs/extra/Ori.png")
+            shopCar_img = Image.open(
+                "src/imgs/extra/loja/Carrinho-Loja-Colorido.png")
 
-        # ITEM CATEGORIE IMAGES
-        comumCat_image = Image.open("src/imgs/extra/loja/Loja-Comum.png")
-        raroCat_image = Image.open("src/imgs/extra/loja/Loja-Raro.png")
-        lendCat_image = Image.open("src/imgs/extra/loja/Loja-Lendario.png")
+            # ITEM CATEGORIE IMAGES
+            comumCat_image = Image.open("src/imgs/extra/loja/Loja-Comum.png")
+            raroCat_image = Image.open("src/imgs/extra/loja/Loja-Raro.png")
+            lendCat_image = Image.open("src/imgs/extra/loja/Loja-Lendario.png")
 
-        comumCategory_value, raroCategory_value, lendCategory_value = 100000, 1000000, 100000000
+            comumCategory_value, raroCategory_value, lendCategory_value = 100000, 1000000, 100000000
 
-        if not banner:
-            banner = Image.open(
-                "src/imgs/extra/loja/banners/Fy-no-Planeta-Magnético.png")
-        else:
-            banner = Image.open(banner)
+            if not banner:
+                banner = Image.open(
+                    "src/imgs/extra/loja/banners/Fy-no-Planeta-Magnético.png")
+            else:
+                banner = Image.open(banner)
 
-        plain = Image.new(
-            'RGBA', (1280, 1280), (0, 45, 62, 255))
+            plain = Image.new(
+                'RGBA', (1280, 1280), (0, 45, 62, 255))
 
-        banner_Big = banner.resize((1280+630, 650+630))
-        banner_Big = banner_Big.crop((300, 0, 1580, 1280))
-        mask = Image.new("L", banner_Big.size, 90)
+            banner_Big = banner.resize((1280+630, 650+630))
+            banner_Big = banner_Big.crop((300, 0, 1580, 1280))
+            mask = Image.new("L", banner_Big.size, 90)
 
-        bannerFundo = Image.composite(banner_Big, plain, mask)
-        bannerBlur = bannerFundo.filter(ImageFilter.GaussianBlur(radius=10))
+            bannerFundo = Image.composite(banner_Big, plain, mask)
+            bannerBlur = bannerFundo.filter(ImageFilter.GaussianBlur(radius=10))
 
-        total_page = total/6 if total/6 == int() else int(total/6+0.5)
+            total_page = total/6 if total/6 == int() else int(total/6+0.5)
 
-        images = []
-        count = 0
-        for i in range(total_page):
-            bg_draw = ImageDraw.Draw(plain)
-            plain.paste(bannerBlur, (0, 0))
+            images = []
+            count = 0
+            for i in range(total_page):
+                bg_draw = ImageDraw.Draw(plain)
+                plain.paste(bannerBlur, (0, 0))
 
-        # SHOPING TITLE
-            plain.paste(shopCar_img, (45, 80), shopCar_img)
-            bg_draw.text((115, 75), "LOJA", font=self.montserrat_extrabold_loja,
-                         anchor="la", fill=(219, 239, 255))
+            # SHOPING TITLE
+                plain.paste(shopCar_img, (45, 80), shopCar_img)
+                bg_draw.text((115, 75), "LOJA", font=self.montserrat_extrabold_loja,
+                             anchor="la", fill=(219, 239, 255))
 
-        # SHOPING COINS
+            # SHOPING COINS
 
-            # SPARK AREA
-            bg_draw.rounded_rectangle(
-                [(695, 50), (959, 140)], 22, fill=(0, 45, 62))
+                # SPARK AREA
+                bg_draw.rounded_rectangle(
+                    [(695, 50), (959, 140)], 22, fill=(0, 45, 62))
 
-            bg_draw.text((770, 60), "Sparks",
-                         font=self.montserrat_medium_coins, fill=(153, 177, 191))
+                bg_draw.text((770, 60), "Sparks",
+                             font=self.montserrat_medium_coins, fill=(153, 177, 191))
 
-            spark_value = f"{int(spark):,}".replace(",", ".")
-            bg_draw.text((770, 90), spark_value,
-                         font=self.montserrat_bold_coins, fill=(219, 239, 255))
+                spark_value = f"{int(spark):,}".replace(",", ".")
+                bg_draw.text((770, 90), spark_value,
+                             font=self.montserrat_bold_coins, fill=(219, 239, 255))
 
-            # ORI AREA
-            bg_draw.rounded_rectangle(
-                [(985, 50), (1249, 140)], 22, fill=(0, 53, 49))
+                # ORI AREA
+                bg_draw.rounded_rectangle(
+                    [(985, 50), (1249, 140)], 22, fill=(0, 53, 49))
 
-            bg_draw.text((1065, 60), "Oris",
-                         font=self.montserrat_medium_coins, fill=(203, 246, 228))
+                bg_draw.text((1065, 60), "Oris",
+                             font=self.montserrat_medium_coins, fill=(203, 246, 228))
 
-            ori_value = f"{int(ori):,}".replace(",", ".")
+                ori_value = f"{int(ori):,}".replace(",", ".")
 
-            bg_draw.text((1065, 90), ori_value,
-                         font=self.montserrat_bold_coins, fill=(0, 247, 132))
+                bg_draw.text((1065, 90), ori_value,
+                             font=self.montserrat_bold_coins, fill=(0, 247, 132))
 
-            # IMAGES
-            spark_img = spark_img.resize((70, 80), Image.NEAREST)
-            plain.paste(spark_img, (700, 55), spark_img)
+                # IMAGES
+                spark_img = spark_img.resize((70, 80), Image.NEAREST)
+                plain.paste(spark_img, (700, 55), spark_img)
 
-            ori_img = ori_img.resize((67, 67), Image.NEAREST)
-            plain.paste(ori_img, (993, 58), ori_img)
+                ori_img = ori_img.resize((67, 67), Image.NEAREST)
+                plain.paste(ori_img, (993, 58), ori_img)
 
-        # FOOTER
-            # PAGE AREA
-            bg_draw.text((630, 1240), "Página",
-                         font=self.montserrat_semibold, anchor="md", fill=(0, 247, 132))
+            # FOOTER
+                # PAGE AREA
+                bg_draw.text((630, 1240), "Página",
+                             font=self.montserrat_semibold, anchor="md", fill=(0, 247, 132))
 
-            bg_draw.text((700, 1240), "%s" % (i+1, ),
-                         font=self.montserrat_extrabold_pageNumb, anchor="md", fill=(0, 247, 132))
+                bg_draw.text((700, 1240), "%s" % (i+1, ),
+                             font=self.montserrat_extrabold_pageNumb, anchor="md", fill=(0, 247, 132))
 
-        # PAGE CREATE LOOP
-            tcount = 0
-            ccount = 0
-            if tcount == 3:
+            # PAGE CREATE LOOP
                 tcount = 0
                 ccount = 0
+                if tcount == 3:
+                    tcount = 0
+                    ccount = 0
 
-            for t in range(7):
-                if count >= total:
-                    break
-                # ITENS OPTIONS
-                largura = 382
+                for t in range(7):
+                    if count >= total:
+                        break
+                    # ITENS OPTIONS
+                    largura = 382
 
-                larg_cima = 420 * ccount
-                larg_baixo = 420 * tcount
+                    larg_cima = 420 * ccount
+                    larg_baixo = 420 * tcount
 
-                list_itens = list(items[count].values())
+                    list_itens = list(items[count].values())
 
-                if str(list_itens[0]['type']) == "Banner":
-                    itemImg = Image.open(list_itens[0]['img']).convert(
-                        "RGBA").resize((330, 185), Image.NEAREST)
-                    itemImg = self.add_corners(itemImg, 20)
-                elif str(list_itens[0]['type']) == "Utilizavel":
-                    itemImg = Image.open(list_itens[0]['img']).convert(
-                        "RGBA").resize((128, 128), Image.NEAREST)
-                elif str(list_itens[0]['type']) == "Badge":
-                    itemImg = Image.open(list_itens[0]['img']).convert("RGBA")
-                    itemImg = itemImg.resize(
-                        (int(itemImg.size[0]/2), int(itemImg.size[1]/2)), Image.NEAREST)
-                elif str(list_itens[0]['type']) == "Titulo":
-                    itemImg = Image.open(list_itens[0]['img']).convert("RGBA")
-                else:
-                    itemImg = Image.open(list_itens[0]['img']).convert("RGBA")
+                    if str(list_itens[0]['type']) == "Banner":
+                        itemImg = Image.open(list_itens[0]['img']).convert(
+                            "RGBA").resize((330, 185), Image.NEAREST)
+                        itemImg = self.add_corners(itemImg, 20)
+                    elif str(list_itens[0]['type']) == "Utilizavel":
+                        itemImg = Image.open(list_itens[0]['img']).convert(
+                            "RGBA").resize((128, 128), Image.NEAREST)
+                    elif str(list_itens[0]['type']) == "Badge":
+                        itemImg = Image.open(list_itens[0]['img']).convert("RGBA")
+                        itemImg = itemImg.resize(
+                            (int(itemImg.size[0]/2), int(itemImg.size[1]/2)), Image.NEAREST)
+                    elif str(list_itens[0]['type']) == "Titulo":
+                        itemImg = Image.open(list_itens[0]['img']).convert("RGBA")
+                    else:
+                        itemImg = Image.open(list_itens[0]['img']).convert("RGBA")
+                        lar = (itemImg.size[0], itemImg.size[1])
+                        itemImg = itemImg.resize(
+                            (int(lar[0]*1.5), int(lar[1]*1.5)), Image.NEAREST
+                        )
+
+                    if int(list_itens[0]['value']) <= comumCategory_value:
+                        img = comumCat_image
+                    elif int(list_itens[0]['value']) <= raroCategory_value:
+                        img = raroCat_image
+                    elif int(list_itens[0]['value']) <= lendCategory_value:
+                        img = lendCat_image
+
                     lar = (itemImg.size[0], itemImg.size[1])
-                    itemImg = itemImg.resize(
-                        (int(lar[0]*1.5), int(lar[1]*1.5)), Image.NEAREST
-                    )
 
-                if int(list_itens[0]['value']) <= comumCategory_value:
-                    img = comumCat_image
-                elif int(list_itens[0]['value']) <= raroCategory_value:
-                    img = raroCat_image
-                elif int(list_itens[0]['value']) <= lendCategory_value:
-                    img = lendCat_image
+                    if larg_baixo > 840:
+                        # ROW 1
+                        break
 
-                lar = (itemImg.size[0], itemImg.size[1])
+                    if larg_cima <= 840:
+                        # IMAGES
+                        altura = 195
 
-                if larg_baixo > 840:
-                    # ROW 1
-                    break
+                        # ROW BACKGROUND IMAGE 1
+                        plain.paste(img, (25 + larg_cima, altura), img)
 
-                if larg_cima <= 840:
-                    # IMAGES
-                    altura = 195
+                        # ROW ITEM IMAGE 1
+                        plain.paste(
+                            itemImg, (int(25 + larg_cima + int((img.size[0] - lar[0])/2)),
+                                      int(altura + int((img.size[1] - lar[1])/2)) - 70), itemImg)
+                    # TEXTS
+                        # ITEM TYPE
+                        bg_draw.text((135 + larg_cima, altura),
+                                     list_itens[0]['type'], fill=(0, 45, 62), anchor="ma", font=self.montserrat_bold_type)
 
-                    # ROW BACKGROUND IMAGE 1
-                    plain.paste(img, (25 + larg_cima, altura), img)
+                        # ITEM NAME
+                        bg_draw.text((int(25 + larg_cima + int((img.size[0]/2))),
+                                      int(altura + int((img.size[1]/2))) + 70),
+                                     list_itens[0]['name'], fill=(215, 235, 251), anchor="ma",
+                                     font=self.montserrat_bold_name)
 
-                    # ROW ITEM IMAGE 1
-                    plain.paste(
-                        itemImg, (int(25 + larg_cima + int((img.size[0] - lar[0])/2)),
-                                  int(altura + int((img.size[1] - lar[1])/2)) - 70), itemImg)
-                # TEXTS
-                    # ITEM TYPE
-                    bg_draw.text((135 + larg_cima, altura),
-                                 list_itens[0]['type'], fill=(0, 45, 62), anchor="ma", font=self.montserrat_bold_type)
+                        # ITEM BUY
+                        bg_draw.text((int(25 + larg_cima + int((img.size[0]/2))),
+                                      int(altura + int((img.size[1]/2))) + 130),
+                                     "/comprar %s" % (list_itens[0]['id'], ), fill=(0, 45, 62), anchor="ma",
+                                     font=self.montserrat_semibolditalic_buy)
 
-                    # ITEM NAME
-                    bg_draw.text((int(25 + larg_cima + int((img.size[0]/2))),
-                                  int(altura + int((img.size[1]/2))) + 70),
-                                 list_itens[0]['name'], fill=(215, 235, 251), anchor="ma",
-                                 font=self.montserrat_bold_name)
+                        # ITEM VALUE
+                        value = f"{int(list_itens[0][ 'value' ]):,}".replace(
+                            ",", ".")
+                        bg_draw.text((int(25 + larg_cima + int((img.size[0]/2))),
+                                      int(altura + int((img.size[1]/2))) + 160),
+                                     value, fill=(0, 45, 62), anchor="ma",
+                                     font=self.montserrat_extrabold_pageNumb)
 
-                    # ITEM BUY
-                    bg_draw.text((int(25 + larg_cima + int((img.size[0]/2))),
-                                  int(altura + int((img.size[1]/2))) + 130),
-                                 "/comprar %s" % (list_itens[0]['id'], ), fill=(0, 45, 62), anchor="ma",
-                                 font=self.montserrat_semibolditalic_buy)
+                        ccount += 1
 
-                    # ITEM VALUE
-                    value = f"{int(list_itens[0][ 'value' ]):,}".replace(
-                        ",", ".")
-                    bg_draw.text((int(25 + larg_cima + int((img.size[0]/2))),
-                                  int(altura + int((img.size[1]/2))) + 160),
-                                 value, fill=(0, 45, 62), anchor="ma",
-                                 font=self.montserrat_extrabold_pageNumb)
+                    elif larg_baixo <= 840:
+                        altura = 685
 
-                    ccount += 1
+                        # ROW BACKGROUND IMAGE 2
+                        plain.paste(img, (25 + larg_baixo, altura), img)
 
-                elif larg_baixo <= 840:
-                    altura = 685
+                        # ROW ITEM IMAGE 2
+                        plain.paste(
+                            itemImg, (int(25 + larg_baixo + int((img.size[0] - lar[0])/2)),
+                                      int(altura + int((img.size[1] - lar[1])/2)) - 70), itemImg)
 
-                    # ROW BACKGROUND IMAGE 2
-                    plain.paste(img, (25 + larg_baixo, altura), img)
+                    # TEXTS
+                        # ITEM TYPE
+                        bg_draw.text((135 + larg_baixo, altura),
+                                     list_itens[0]['type'], fill=(0, 45, 62), anchor="ma", font=self.montserrat_bold_type)
 
-                    # ROW ITEM IMAGE 2
-                    plain.paste(
-                        itemImg, (int(25 + larg_baixo + int((img.size[0] - lar[0])/2)),
-                                  int(altura + int((img.size[1] - lar[1])/2)) - 70), itemImg)
+                        # ITEM NAME
+                        bg_draw.text((int(25 + larg_baixo + int((img.size[0]/2))),
+                                      int(altura + int((img.size[1]/2))) + 70),
+                                     list_itens[0]['name'], fill=(215, 235, 251), anchor="ma",
+                                     font=self.montserrat_bold_name)
 
-                # TEXTS
-                    # ITEM TYPE
-                    bg_draw.text((135 + larg_baixo, altura),
-                                 list_itens[0]['type'], fill=(0, 45, 62), anchor="ma", font=self.montserrat_bold_type)
+                        # ITEM BUY
+                        bg_draw.text((int(25 + larg_baixo + int((img.size[0]/2))),
+                                      int(altura + int((img.size[1]/2))) + 130),
+                                     "/comprar %s" % (list_itens[0]['id'], ), fill=(0, 45, 62), anchor="ma",
+                                     font=self.montserrat_semibolditalic_buy)
 
-                    # ITEM NAME
-                    bg_draw.text((int(25 + larg_baixo + int((img.size[0]/2))),
-                                  int(altura + int((img.size[1]/2))) + 70),
-                                 list_itens[0]['name'], fill=(215, 235, 251), anchor="ma",
-                                 font=self.montserrat_bold_name)
+                        # ITEM VALUE
+                        value = f"{int(list_itens[0][ 'value' ]):,}".replace(
+                            ",", ".")
+                        bg_draw.text((int(25 + larg_baixo + int((img.size[0]/2))),
+                                      int(altura + int((img.size[1]/2))) + 160),
+                                     value, fill=(0, 45, 62), anchor="ma",
+                                     font=self.montserrat_extrabold_pageNumb)
 
-                    # ITEM BUY
-                    bg_draw.text((int(25 + larg_baixo + int((img.size[0]/2))),
-                                  int(altura + int((img.size[1]/2))) + 130),
-                                 "/comprar %s" % (list_itens[0]['id'], ), fill=(0, 45, 62), anchor="ma",
-                                 font=self.montserrat_semibolditalic_buy)
+                        tcount += 1
 
-                    # ITEM VALUE
-                    value = f"{int(list_itens[0][ 'value' ]):,}".replace(
-                        ",", ".")
-                    bg_draw.text((int(25 + larg_baixo + int((img.size[0]/2))),
-                                  int(altura + int((img.size[1]/2))) + 160),
-                                 value, fill=(0, 45, 62), anchor="ma",
-                                 font=self.montserrat_extrabold_pageNumb)
+                    count += 1
 
-                    tcount += 1
+                plain = plain.convert('RGB')
+                try:
+                    u = uuid.uuid4().hex
 
-                count += 1
+                    plain.save(f'{os.path.join(_path, u)}.png', 'PNG')
+                    # buffer.seek(0)
 
-            plain = plain.convert('RGB')
-            try:
-                u = uuid.uuid4().hex
-
-                plain.save(f'{os.path.join(path, u)}.png', 'PNG')
-                # buffer.seek(0)
-
-            except Exception as i:
-                raise i
-            else:
-                images.append(f"{u}.png")
-        return images
+                except Exception as i:
+                    raise i
+                else:
+                    images.append(f"{u}.png")
+            return images
+        except Exception as e:
+            print(e)
+            raise e
 
 
 class Top:
