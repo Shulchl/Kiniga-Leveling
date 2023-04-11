@@ -85,10 +85,19 @@ class User(commands.Cog):
 
             staff = await get_roles(uMember, interaction.guild)
 
-            result = await self.db.fetch("SELECT rank, info, spark, ori, birth, iventory_id FROM users WHERE id=\'%s\'" % (uMember.id, ))
+            result = await self.db.fetch(
+                """
+                    SELECT rank, info, spark, ori, birth, iventory_id FROM users
+                    WHERE id=(\'%s\')
+                """ % (uMember.id, )
+            )
 
             if not result:
-                return await interaction.followup.send("`%s, você ainda não tem nenhum ponto de experiência.`" % (uMember.mention, ), ephemeral=True)
+                return await interaction.followup.send(
+                    "`%s, você ainda não tem nenhum ponto de experiência.`" % (
+                        uMember.mention,
+                        ), ephemeral=True
+                )
 
             userRank = result[0][0]
             userInfo = result[0][1]
@@ -102,12 +111,19 @@ class User(commands.Cog):
             except:
                 with open("../src/imgs/extra/Icon-Kiniga.png", "rb") as image:
                     profile_bytes = image.read()
+                    image.close()
 
             checkRanks = await self.db.execute('SELECT lvmin FROM ranks LIMIT 1')
             if not checkRanks:
-                return await interaction.followup.send("`Não há nenhuma classe no momento.`")
+                return await interaction.followup.send(
+                    "`Não há nenhuma classe no momento.`")
 
-            ranks = await self.db.fetch("SELECT name, r, g, b FROM ranks WHERE lvmin <= %s ORDER BY lvmin DESC" % (userRank + 1 if userRank == 0 else userRank, ))
+            ranks = await self.db.fetch(
+                """
+                    SELECT name, r, g, b FROM ranks
+                    WHERE lvmin <= %s ORDER BY lvmin DESC
+                """ % (userRank + 1 if userRank == 0 else userRank, )
+            )
 
             if ranks:
                 rankName = ranks[0][0]
@@ -120,7 +136,13 @@ class User(commands.Cog):
                 rankG = None
                 rankB = None
 
-            iventory = await self.db.fetch("SELECT moldura, car, banner, badge::jsonb FROM iventory WHERE iventory_id = (\'%s\')" % (userIventoryId, ))
+            iventory = await self.db.fetch(
+                """
+                    SELECT moldura, car, banner, badge::jsonb
+                    FROM iventory 
+                    WHERE iventory_id = (\'%s\')
+                """ % (userIventoryId, )
+            )
 
             mold_id = iventory[0][0]
 
@@ -146,26 +168,30 @@ class User(commands.Cog):
             badge_ids = iventory[0][3]
             # print(badge_ids, flush=True)
             badge_images = []
+            print(badge_ids, flush=True)
+            # {"rank": ["ab5408e6-13e8-4748-bbe7-6301fa6cb3be", "1a7b77d8-55d5-4877-b7aa-74da8649e9ea", "2e8f4bd6-0790-40ac-a35a-967090b4b0cb", "f109b437-4762-4439-bcc5-015a826ab8b1"], "equipe": ["db5ffddb-e606-43f1-8ef0-8dcd57452340"]}
+
             if badge_ids != '{}':
                 badges_values = []
                 l = ast.literal_eval(badge_ids)
                 for key, value in l.items():
                     badges_values.append(value)
-                badge_rows = badges_values[0]
-                if badge_rows:
+                if badge_rows := [j for i in badges_values for j in i] if len(badges_values) > 1 else badges_values:
+                    print(badge_rows, flush=True)
                     if len(badge_rows) > 1:
-                        print("before", flush=True)
                         rows = await self.db.fetch(
                             """
-                                SELECT img FROM itens WHERE item_type_id IN %s
+                                SELECT img FROM itens 
+                                WHERE item_type_id IN %s 
+                                ORDER BY lvmin ASC
                             """ % (tuple(str(i) for i in badge_rows),)
                         )
-                        print("after", flush=True)
                     else:
                         rows = await self.db.fetch(
                             """
                                 SELECT img FROM itens
                                 WHERE item_type_id = \'%s\'
+                                ORDER BY lvmin ASC
                             """ % ( badge_rows[0] )
                         )
                     for row in rows:
@@ -181,7 +207,12 @@ class User(commands.Cog):
                 rankB, BytesIO(profile_bytes)
             )
 
-            await interaction.followup.send(file=dFile(fp=buffer, filename='rank_card.png'))
+            await interaction.followup.send(
+                file=dFile(
+                    fp=buffer,
+                    filename='profile_card.png'
+                )
+            )
         except Exception as e:
             await interaction.followup.send(e)
             raise (e)
@@ -248,7 +279,7 @@ class User(commands.Cog):
         else:
             await interaction.followup.send('É preciso adicionar alguma classe primeiro.')
 
-        await interaction.followup.send(file=dFile(fp=buffer, filename='nivel_card.png'), ephemeral=True)
+        await interaction.followup.send(file=dFile(fp=buffer, filename='rank_card.png'), ephemeral=True)
 
     @activity_cooldown
     @app_commands.command()
@@ -511,6 +542,8 @@ class User(commands.Cog):
             print(e, flush=True)
             await interaction.followup.send(e, ephemeral=True)
             raise e
+
+
 
     # description='Use diariamente para receber recompensas incríveis'
     @longest_cooldown

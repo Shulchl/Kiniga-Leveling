@@ -160,7 +160,6 @@ class Shop(commands.Cog):
         # GET ITENS FROM WITH SPECIFIC KEY
         # user_itens = await self.db.fetchrow("SELECT itens::json FROM iventory WHERE iventory_id = '%s'" % (iventory_id))
         # Check if the item_id_uui already exists in the user_itens
-        print("Test", flush=True)
         update_result = await inventory_update_key(self, iventory_id, item_type, str(item_group + '.ids'),
                                                    str(item_id_uui), 'use', 0)
 
@@ -308,9 +307,6 @@ class Shop(commands.Cog):
                     for key, value in l.items():
                         inv_ids.append(str(key))
 
-            print(type(inv_ids), flush=True)
-            print("-*-"*10, flush=True)
-            print(type(str(item_id)), flush=True)
             if str(item_id) not in inv_ids:
                 return await interaction.followup.send(
                     "Você não tem esse item.",
@@ -331,7 +327,6 @@ class Shop(commands.Cog):
                     "Esse item não está equipado.",
                     ephemeral=True
                 )
-            print("removido", flush=True)
             data[group_].remove(str(item_id))
             data = json.dumps(data)
 

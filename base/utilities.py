@@ -1285,10 +1285,16 @@ class Rank:
                                      font=self.montserrat_bold_name)
 
                         # ITEM EQUIP
-                        bg_draw.text((int(largura + int((img.size[0]/2))),
-                                      int(altura + int((img.size[1]/2))) + 103),
-                                     "/equipar %s" % (list_itens[0]['id'], ), fill=(0, 45, 62), anchor="ma",
-                                     font=self.montserrat_extrabolditalic_equip)
+                        bg_draw.text(
+                            (int(largura + int((img.size[0]/2))),
+                              int(altura + int((img.size[1]/2))) + 103),
+                            "%s %s" % (
+                                "/equipar" if list_itens[0]['type'].upper() != "UTILIZAVEL" else "/usar",
+                                list_itens[0]['id'],
+                            ), fill=(0, 45, 62), 
+                            anchor="ma", 
+                            font=self.montserrat_extrabolditalic_equip
+                        )
 
                         ccount += 1
                         count += 1

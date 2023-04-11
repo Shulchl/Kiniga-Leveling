@@ -493,6 +493,19 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     @config.command(name='setitens')
     async def setitens(self, ctx):
         await ctx.message.delete()
+
+        has_ranks = await self.db.fetch(
+            """
+                SELECT name FROM ranks LIMIT 1
+            """
+        )
+
+        if not has_ranks:
+            return await ctx.reply(
+                "Você precisa usar o comando `s.setroles` primeiro.", 
+                delete_after=10
+            )
+
         try:
             await starterItens(self)
         except Exception as e:
