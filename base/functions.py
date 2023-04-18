@@ -31,8 +31,6 @@ from asyncpg.pgproto.pgproto import UUID
 
 from discord.utils import format_dt
 
-from bot import log
-
 __all__ = []
 
 
@@ -50,7 +48,7 @@ def print_progress_bar(index, total, label):
     progress = index / total
     sys.stdout.write('\r')
     sys.stdout.write(
-        f"[{'=' * int(n_bar * progress):{n_bar}s}] {int(100 * progress)}%  {label}")
+        f"[{'=' * int(n_bar * progress):{n_bar}s}] {int(100 * progress)}%  {label}\n")
     sys.stdout.flush()
 
 
@@ -168,7 +166,7 @@ async def starterRoles(self, msg):
             raise (o)
         else:
             print_progress_bar(
-                i, len(classes), " progresso de classes criadas")
+                i, len(classes), " progresso de badges criadas")
         finally:
             count += 10
     print("Todas as classes foram criadas")
@@ -191,34 +189,55 @@ async def starterItens(self):
         'src/imgs/molduras/molduras-loja') if filename.endswith('.png')]
 
     try:
-        # START MOLDS INSERT
-        for i, item in enumerate(molduras):
-            print_progress_bar(
-                i, len(molduras), " progresso de molduras criadas")
-            item_name = ' '.join(item.split('-'))[0:-4]
-            try:
-                await self.db.execute("""
-                    INSERT INTO molds (
-                        name, lvmin, canbuy, 
-                        img, 
-                        imgxp, 
-                        img_bdg, 
-                        img_profile, 
-                        img_mold_title
-                    ) VALUES ('%(name)s', 0, True,
-                        'src/imgs/molduras/molduras-loja/%(item)s',
-                        'src/imgs/molduras/molduras-perfil/xp-bar/%(item)s',
-                        'src/imgs/badges/rank/%(item)s',
-                        'src/imgs/molduras/molduras-perfil/bordas/rank/%(item)s', 
-                        'src/imgs/molduras/molduras-perfil/titulos/%(item)s'
-                    ) ON CONFLICT (name) DO NOTHING
-                """ % {'name': item_name, 'item': item, })
-            except Exception as o:
-                raise (o)
-            else:
+        try:
+            # START MOLDS INSERT
+            for i, item in enumerate(molduras):
                 print_progress_bar(
-                    i, len(molduras), " progresso de classes criadas")
-        print("Todas as molduras foram criadas")
+                    i, len(molduras), " progresso de molduras criadas")
+                item_name = ' '.join(item.split('-'))[0:-4]
+                try:
+                    await self.db.execute("""
+                        INSERT INTO molds (
+                            name, lvmin, canbuy, 
+                            img, 
+                            imgxp, 
+                            img_bdg, 
+                            img_profile, 
+                            img_mold_title
+                        ) VALUES ('%(name)s', 0, True,
+                            'src/imgs/molduras/molduras-loja/%(item)s',
+                            'src/imgs/molduras/molduras-perfil/xp-bar/%(item)s',
+                            'src/imgs/badges/rank/%(item)s',
+                            'src/imgs/molduras/molduras-perfil/bordas/rank/%(item)s', 
+                            'src/imgs/molduras/molduras-perfil/titulos/%(item)s'
+                        ) ON CONFLICT (name) DO NOTHING
+                    """ % {'name': item_name, 'item': item, })
+                except Exception as o:
+                    raise (o)
+                else:
+                    print_progress_bar(
+                        i, len(molduras), " progresso de molduras criadas")
+
+            print("Atualizando lvmin das badges...", flush=True)
+            await self.db.fetch(
+                """
+                    UPDATE badges SET lvmin = (
+                        SELECT lvmin FROM ranks WHERE ranks.name = badges.name
+                    )
+                """
+            )
+            print("Atualizando lvmin das molduras...", flush=True)
+            await self.db.fetch(
+                """
+                    UPDATE molds SET lvmin = (
+                        SELECT lvmin FROM ranks WHERE ranks.name = molds.name
+                    )
+                """
+            )
+        except Exception as e:
+            raise e
+        else:
+            print("Todas as molduras e badges foram criadas e atualizadas")
         # END MOLDS INSERT
 
         # START BANNERS INSERT

@@ -18,6 +18,31 @@ from base.struct import Config
 
 from base.functions import (getRelease, sendEmb, getfile)
 
+class defaultViewButton(View):
+    def __init__(self, *args, timeout=180):
+
+        super().__init__(timeout=timeout)
+
+
+        self.value = None
+
+    @ui.button(label=f"Cancelar", style=discord.ButtonStyle.red)
+    async def priceButton(self, interaction, button):
+        self.value = 'cancel'
+        self.remove_buttons()
+        await interaction.response.edit_message(view=self)
+        self.stop()
+
+    def remove_buttons(self):
+        for i in self.children:
+            i.disabled = True
+
+    async def on_timeout(self, interaction):
+        self.remove_buttons()
+
+        await interaction.response.edit_message(view=self)
+        self.stop()
+
 
 class Paginacao(View):
     def __init__(self, pages: list, timeout: float, user: discord.Member | None = None) -> None:

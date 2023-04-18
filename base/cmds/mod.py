@@ -4,6 +4,7 @@ import json
 import random
 import os
 import discord
+import sys
 
 from asyncio import sleep as asyncsleep
 from typing import Literal, Optional
@@ -41,6 +42,10 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
 
     def cog_unload(self):
         self.bdayloop.close()
+
+    def cog_load(self):
+        sys.stdout.write(f'Cog carregada: {self.__class__.__name__}\n')
+        sys.stdout.flush()
 
     @commands.group()
     @commands.is_owner()
@@ -493,6 +498,19 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     @config.command(name='setitens')
     async def setitens(self, ctx):
         await ctx.message.delete()
+
+        has_ranks = await self.db.fetch(
+            """
+                SELECT name FROM ranks LIMIT 1
+            """
+        )
+
+        if not has_ranks:
+            return await ctx.reply(
+                "Você precisa usar o comando `s.setroles` primeiro.", 
+                delete_after=10
+            )
+
         try:
             await starterItens(self)
         except Exception as e:
