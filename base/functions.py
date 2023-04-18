@@ -31,8 +31,6 @@ from asyncpg.pgproto.pgproto import UUID
 
 from discord.utils import format_dt
 
-from bot import log
-
 __all__ = []
 
 
@@ -50,7 +48,7 @@ def print_progress_bar(index, total, label):
     progress = index / total
     sys.stdout.write('\r')
     sys.stdout.write(
-        f"[{'=' * int(n_bar * progress):{n_bar}s}] {int(100 * progress)}%  {label}")
+        f"[{'=' * int(n_bar * progress):{n_bar}s}] {int(100 * progress)}%  {label}\n")
     sys.stdout.flush()
 
 

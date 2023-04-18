@@ -1,8 +1,10 @@
-import discord, json, os
+import discord, json, os, sys
 from discord.ext import commands
 from discord.errors import Forbidden
 from base.struct import Config
 from discord import app_commands
+
+from base import cfg
 
 
 async def send_embed(interaction: discord.Interaction, embed: discord.Embed):
@@ -22,9 +24,10 @@ class Ajuda(commands.Cog):
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        self.cfg = cfg
 
-        with open('config.json', 'r') as f:
-            self.cfg = Config(json.loads(f.read()))
+    def cog_load(self):
+        sys.stdout.write(f'Cog carregada: {self.__class__.__name__}\n')
 
     @app_commands.command(name='ajuda', description='Mostra esta mensagem.')
     @app_commands.guilds(discord.Object(id=943170102759686174))

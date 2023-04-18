@@ -4,6 +4,7 @@ import json
 import random
 import os
 import discord
+import sys
 
 from asyncio import sleep as asyncsleep
 from typing import Literal, Optional
@@ -41,6 +42,10 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
 
     def cog_unload(self):
         self.bdayloop.close()
+
+    def cog_load(self):
+        sys.stdout.write(f'Cog carregada: {self.__class__.__name__}\n')
+        sys.stdout.flush()
 
     @commands.group()
     @commands.is_owner()

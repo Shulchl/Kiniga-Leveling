@@ -32,6 +32,8 @@ from base.utilities import utilities
 from base.struct import Config
 from base.views import Paginacao
 
+from base import log, cfg
+
 longest_cooldown = app_commands.checks.cooldown(
     2, 300.0, key=lambda i: (i.guild_id, i.user.id))
 activity_cooldown = app_commands.checks.cooldown(
@@ -50,9 +52,11 @@ class User(commands.Cog):
         self.db = utilities.database(self.bot.loop)
         self.brake = []
 
-        with open('config.json', 'r') as f:
-            self.cfg = Config(json.loads(f.read()))
+        self.cfg = cfg
 
+    def cog_load(self):
+        sys.stdout.write(f'Cog carregada: {self.__class__.__name__}\n')
+        sys.stdout.flush()
 
     async def cog_app_command_error(
         self, 
@@ -215,7 +219,7 @@ class User(commands.Cog):
             )
         except Exception as e:
             await interaction.followup.send(e)
-            raise (e)
+            log.warning(e)
 
 
     # @longest_cooldown
@@ -265,7 +269,7 @@ class User(commands.Cog):
                 else:
                     moldName, moldImg, xpimg = None, None, None
             except Exception as e:
-                raise (e)
+                log.warning(e)
 
             try:
                 buffer = await self.bot.loop.run_in_executor(
@@ -275,7 +279,7 @@ class User(commands.Cog):
                     moldName, moldImg, xpimg, background
                 )
             except Exception as e:
-                raise (e)
+                log.warning(e)
         else:
             await interaction.followup.send('É preciso adicionar alguma classe primeiro.')
 
@@ -541,8 +545,7 @@ class User(commands.Cog):
         except Exception as e:
             print(e, flush=True)
             await interaction.followup.send(e, ephemeral=True)
-            raise e
-
+            log.warning(e)
 
 
     # description='Use diariamente para receber recompensas incríveis'

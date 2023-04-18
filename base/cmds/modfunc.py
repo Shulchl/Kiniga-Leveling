@@ -3,6 +3,7 @@ import re
 import os
 import json
 import discord
+import sys
 
 from discord.ext import commands
 from discord import app_commands
@@ -89,28 +90,34 @@ class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
             self.bot.tree.remove_command(
                 a.name, type=a.type)
 
-    @commands.hybrid_group(name='dar')
+    def cog_load(self):
+        sys.stdout.write(f'Cog carregada: {self.__class__.__name__}\n')
+        sys.stdout.flush()
+
+    @commands.hybrid_group(name='opt')
     @commands.is_owner()
     @commands.guild_only()
-    async def dar(self, ctx):
+    async def opt(self, ctx):
         pass
 
     @activity_cooldown
-    @dar.command(name="spark")
+    @opt.command(name="spark")
     @app_commands.checks.has_permissions(administrator=True)
-    async def spark(self, ctx, simbol: Optional[Literal['-', '+']], amount: int,
+    async def spark(self, ctx, simbolo: Optional[Literal['-', '+']], quantia: int,
                     member: discord.Member = None):
         member = member or ctx.author
+        if not simbolo:
+            simbolo = '+'
         if member:
-            if simbol == '+':
-                await self.db.fetch(f"UPDATE users SET spark = ( spark + {amount}) WHERE id= (\'{member.id}\')")
+            if simbolo == '+':
+                await self.db.execute("UPDATE users SET spark = ( spark + $1) WHERE id= ($2)", quantia, str(member.id))
                 return await ctx.send(
-                    f"Foram adicionadas {amount} oris à {member.mention}!"
+                    f"Foram adicionadas {quantia} sparks à {member.mention}!"
                 )
-            elif simbol == '-':
-                await self.db.fetch(f"UPDATE users SET spark = (spark - {amount}) WHERE id= (\'{member.id}\')")
+            elif simbolo == '-':
+                await self.db.execute("UPDATE users SET spark = ( spark - $1) WHERE id= ($2)", quantia, str(member.id))
                 return await ctx.send(
-                    f"Foram removidas {amount} oris de {member.mention}!"
+                    f"Foram removidas {quantia} sparks de {member.mention}!"
                 )
         else:
             return await ctx.send(
@@ -118,7 +125,31 @@ class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
             )
 
     @activity_cooldown
-    @dar.command(name="item")
+    @opt.command(name="ori")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def ori(self, ctx, simbolo: Optional[Literal['-', '+']], quantia: int,
+                    member: discord.Member = None):
+        member = member or ctx.author
+        if not simbolo:
+            simbolo = '+'
+        if member:
+            if simbolo == '+':
+                await self.db.execute("UPDATE users SET ori = ( ori + $1) WHERE id= ($2)", quantia, str(member.id))
+                return await ctx.send(
+                    f"Foram adicionadas {quantia} oris à {member.mention}!"
+                )
+            elif simbolo == '-':
+                await self.db.execute("UPDATE users SET ori = ( ori - $1) WHERE id= ($2)", quantia, str(member.id))
+                return await ctx.send(
+                    f"Foram removidas {quantia} oris de {member.mention}!"
+                )
+        else:
+            return await ctx.send(
+                "O usuário não está no servidor"
+            )
+
+    @activity_cooldown
+    @opt.command(name="item")
     @app_commands.checks.has_permissions(administrator=True)
     async def item(self, ctx, item_id, member: discord.Member = None):
         if not member:

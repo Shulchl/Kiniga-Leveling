@@ -1,5 +1,6 @@
 import json
 import discord
+import sys
 
 from random import randint
 from discord.ext import commands
@@ -23,6 +24,9 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
             self.cfg = Config(json.loads(f.read()))
 
         #self.brake = []
+    def cog_load(self):
+        sys.stdout.write(f'Cog carregada: {self.__class__.__name__}\n')
+        sys.stdout.flush()
 
     @commands.Cog.listener()
     async def on_message(self, message) -> None:
@@ -38,7 +42,7 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
 
             user_infos = await self.db.fetch("SELECT rank, xp, xptotal, id, iventory_id FROM users WHERE id=(\'%s\')" % (aId, ))
             if not user_infos:
-                user_infos = await self.db.fetch("""
+                user_infos = await self.db.execute("""
                     INSERT INTO users (id, rank, xp, xptotal, user_name) 
                     VALUES (\'%s\', 0, 0, 0, \'%s\') RETURNING rank, xp, xptotal, id, iventory_id;
                 """ % (aId, message.author.name, ) )

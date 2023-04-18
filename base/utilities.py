@@ -9,16 +9,9 @@ from io import BytesIO
 from lib2to3.pytree import convert
 from typing import Any, Optional
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
-from base.struct import Config
+from base import log, cfg
 
 import line_profiler
-
-import logging
-
-logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
-
-logger = logging.getLogger(__name__)
-
 
 # * Créditos: IVI
 # * https://stackoverflow.com/questions/36588126/uuid-is-not-json-serializable#:~:text=import%20json%0Afrom%20uuid%20import%20UUID%0A%0A%0Aclass%20UUIDEncoder(json.JSONEncoder)%3A%0A%20%20%20%20def%20default(self%2C%20obj)%3A%0A%20%20%20%20%20%20%20%20if%20isinstance(obj%2C%20UUID)%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20%23%20if%20the%20obj%20is%20uuid%2C%20we%20simply%20return%20the%20value%20of%20uuid%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20obj.hex%0A%20%20%20%20%20%20%20%20return%20json.JSONEncoder.default(self%2C%20obj)
@@ -52,24 +45,21 @@ except Exception as e:
 class Database:
     def __init__(self, loop, user: str = None, password: str = None) -> None:
 
-        with open('config.json', 'r') as f:
-            self.cfg = Config(json.loads(f.read()))
+        self.user = cfg.postgresql_user
+        self.password = cfg.postgresql_password
+        self.host = cfg.postgresql_host
 
-        self.pool: Optional[asyncpg.pool.Pool] = None
-
-        self.user = self.cfg.postgresql_user
-        self.password = self.cfg.postgresql_password
-        self.host = self.cfg.postgresql_host
+        self.pool = None
 
         loop.create_task(self.connect())
 
     #@retry(stop=stop_after_attempt(4), before_sleep=my_before_sleep)
-    async def connect(self) -> None:
+    async def connect(self) -> asyncpg.pool.Pool:
         try:
             self.pool = await asyncpg.create_pool(
                 user=self.user,
                 password=self.password,
-                database='%s' % (self.cfg.dbName),
+                database='%s' % (cfg.dbName),
                 host=self.host)
 
         except Exception as err:
@@ -80,13 +70,11 @@ class Database:
                 try:
                     await conn.execute("""
                             CREATE DATABASE %(db)s
-                        """ % {'db': self.cfg.dbName})
+                        """ % {'db': cfg.dbName})
                     await conn.execute('CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" ')
                 except Exception as i:
-                    print(i)
+                    log.error(i)
 
-                
-                        
             else:
                 # pass exception to function
                 print(err)
@@ -96,19 +84,16 @@ class Database:
             self.pool = await asyncpg.create_pool(
                 user=self.user,
                 password=self.password,
-                database='%s' % (self.cfg.dbName),
+                database='%s' % (cfg.dbName),
                 host=self.host)
 
             # MUDA CONEXÃO PRA 'NONE' EM CASO DE ERRO
             # self.conn = None
-
-        else:
             # CRIA TABLES
             async with self.pool.acquire() as conn:
                 async with conn.transaction():
                     with open(os.path.join(__file__, '..\db', 'tables.sql'), 'r') as e:
                         await conn.execute(e.read())
-
 
     async def fetch(self, sql: str, *args: Any) -> list:
         async with self.pool.acquire() as conn:
@@ -730,6 +715,7 @@ class Rank:
 
         return buffer
 
+    # PERFIL
     def draw_new(
         self, 
         user: str, 

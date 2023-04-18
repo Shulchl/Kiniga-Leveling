@@ -8,7 +8,6 @@
 
 import sys
 import psycopg2
-import logging
 
 __all__ = [ 'Database' ]
 
