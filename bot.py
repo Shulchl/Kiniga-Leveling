@@ -3,11 +3,13 @@ import os
 import aiohttp
 import discord
 import asyncio
-import log
 
 from base import log, cfg
 
 from discord.ext import commands
+
+#import matplotlib
+#print(matplotlib.get_configdir(), flush=True)
 
 TEST_GUILD = discord.Object(id=943170102759686174)
 
@@ -15,11 +17,11 @@ class SpinovelBot(commands.Bot):
     def __init__(self) -> None:
         intents = discord.Intents.all()
         atividade = discord.Activity(type=discord.ActivityType.watching,
-                                     name="Kiniga")
+                                     name="Spinovel")
         super().__init__(
             intents=intents,
             command_prefix=commands.when_mentioned_or(cfg.prefix),
-            description='Kiniga Brasil',
+            description='Spinovel Brasil',
             activity=atividade
         )
 

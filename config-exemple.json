@@ -98,5 +98,9 @@
     "chat_release": 12334556789,
     "chat_creators": 12334556789,
     "acept_channel": 12334556789,
-    "refuse_channel": 12334556789
+    "refuse_channel": 12334556789,
+    "publish_channel": 12334556789,
+    "refuse_channel": 12334556789,
+    "trello_log_channel": 12334556789,
+    
 }

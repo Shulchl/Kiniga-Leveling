@@ -89,26 +89,19 @@ class User(commands.Cog):
 
             staff = await get_roles(uMember, interaction.guild)
 
-            result = await self.db.fetch(
+            userRank, userInfo, userSpark, userOri, userBirth, userIventoryId = await self.db.fetchrow(
                 """
-                    SELECT rank, info, spark, ori, birth, iventory_id FROM users
+                    SELECT rank, info, spark, ori, birth, iventory_id 
+                    FROM users
                     WHERE id=(\'%s\')
                 """ % (uMember.id, )
             )
 
-            if not result:
+            if not userRank:
                 return await interaction.followup.send(
-                    "`%s, você ainda não tem nenhum ponto de experiência.`" % (
-                        uMember.mention,
-                        ), ephemeral=True
+                    "`%s, você ainda não tem nenhum ponto de experiência.`" % 
+                    (uMember.mention ), ephemeral=True
                 )
-
-            userRank = result[0][0]
-            userInfo = result[0][1]
-            userSpark = result[0][2]
-            userOri = result[0][3]
-            userBirth = result[0][4]
-            userIventoryId = result[0][5]
 
             try:
                 profile_bytes = await get_userAvatar_func(uMember)
@@ -122,33 +115,25 @@ class User(commands.Cog):
                 return await interaction.followup.send(
                     "`Não há nenhuma classe no momento.`")
 
-            ranks = await self.db.fetch(
+            rankName, rankR, rankG, rankB = await self.db.fetchrow(
                 """
                     SELECT name, r, g, b FROM ranks
                     WHERE lvmin <= %s ORDER BY lvmin DESC
                 """ % (userRank + 1 if userRank == 0 else userRank, )
             )
 
-            if ranks:
-                rankName = ranks[0][0]
-                rankR = ranks[0][1]
-                rankG = ranks[0][2]
-                rankB = ranks[0][3]
-            else:
-                rankName = None
-                rankR = None
-                rankG = None
-                rankB = None
-
-            iventory = await self.db.fetch(
+            user_moldura, user_car, user_banner, user_badge = await self.db.fetchrow(
                 """
                     SELECT moldura, car, banner, badge::jsonb
                     FROM iventory 
                     WHERE iventory_id = (\'%s\')
                 """ % (userIventoryId, )
             )
+            print(user_moldura, user_car, user_banner, user_badge, flush=True)
 
-            mold_id = iventory[0][0]
+
+
+            mold_id = user_moldura
 
             # Pega moldura equipada
             moldImage = None
@@ -157,7 +142,7 @@ class User(commands.Cog):
                 if mold:
                     moldImage = mold[0][0]
 
-            banner_id = iventory[0][2]
+            banner_id = user_banner
 
             # Pega banner equipado
             bannerImg = None
@@ -169,7 +154,7 @@ class User(commands.Cog):
                 bannerImg = "src/imgs/extra/loja/banners/Fy-no-Planeta-Magnético.png"
 
             # Pega badges equipadas
-            badge_ids = iventory[0][3]
+            badge_ids = user_badge
             # print(badge_ids, flush=True)
             badge_images = []
             print(badge_ids, flush=True)
@@ -230,61 +215,78 @@ class User(commands.Cog):
     async def nivel(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
 
         await interaction.response.defer(ephemeral=True, thinking=True)
-
-        if member:
-            uMember = member
-        else:
-            uMember = interaction.user
-
-        result = await self.db.fetch("SELECT rank, xp, xptotal, iventory_id FROM users WHERE id = (\'%s\')" % (uMember.id, ))
-        if not result:
-            return await interaction.followup.send(f"{uMember.mention}, você ainda não recebeu experiência.")
-
         try:
-            iventory = await self.db.fetch("SELECT banner FROM iventory WHERE iventory_id = (\'%s\')" % (result[0][3], ))
-            banner_id = iventory[0][0]
-            if banner_id is not None:
-                banner = await self.db.fetch("SELECT img_perfil FROM banners WHERE id=(\'%s\')" % (banner_id, ))
-                if banner:
-                    background = banner[0][0]
-            else:
-                background = "src/imgs/extra/loja/banners/Fy-no-Planeta-Magnético.png"
-        except Exception as e:
-            return await interaction.followup.send("Não foi possível pegar o banner no usuário! %s" % (e, ))
 
-        total = await self.db.fetch('SELECT COUNT(lvmin) FROM ranks')
-        d = re.sub('\\D', '', str(total))
-        if int(d) > 0:
+            if member:
+                uMember = member
+            else:
+                uMember = interaction.user
+
+
+            user_rank, user_xp, user_xptotal, user_iventory_id  = await self.db.fetchrow(
+                """
+                    SELECT rank, xp, xptotal, iventory_id 
+                    FROM users 
+                    WHERE id = (\'%s\')
+                """ % (uMember.id, )
+            )
+            
+            if not user_rank:
+                return await interaction.followup.send(
+                    "%s, você ainda não recebeu experiência." % (uMember.mention)
+                )
+
             try:
+                banner_id = await self.db.fetchval(
+                    """
+                        SELECT img_perfil 
+                        FROM banners 
+                        WHERE id=(
+                            SELECT banner 
+                            FROM iventory 
+                            WHERE iventory_id = (\'%s\')
+                        )
+                    """ % (user_iventory_id, )
+                )
+
+                if not banner_id:
+                    background = "src/imgs/extra/loja/banners/Fy-no-Planeta-Magnético.png"
+                    
+            except Exception as e:
+                return await interaction.followup.send(
+                    "Não foi possível pegar o banner no usuário! %s" % (e, )
+                )
+
+            total = await self.db.fetch('SELECT COUNT(lvmin) FROM ranks')
+            d = re.sub('\\D', '', str(total))
+            if int(d) > 0:
                 rankss = await self.db.fetch(
                     """
                         SELECT name, badges, imgxp 
                         FROM ranks 
                         WHERE lvmin <= %s 
                         ORDER BY lvmin DESC
-                    """ % (result[0][0], )
+                    """ % (user_rank, )
                 )
                 if rankss:
                     moldName, moldImg, xpimg = rankss[0][0], rankss[0][1], rankss[0][2]
                 else:
                     moldName, moldImg, xpimg = None, None, None
-            except Exception as e:
-                log.warning(e)
 
-            try:
+
                 buffer = await self.bot.loop.run_in_executor(
                     None,
                     utilities.rankcard.rank,
-                    result[0][0], result[0][1], result[0][2],
+                    user_rank, user_xp, user_xptotal,
                     moldName, moldImg, xpimg, background
                 )
-            except Exception as e:
-                log.warning(e)
-        else:
-            await interaction.followup.send('É preciso adicionar alguma classe primeiro.')
+            else:
+                await interaction.followup.send('É preciso adicionar alguma classe primeiro.')
 
-        await interaction.followup.send(file=dFile(fp=buffer, filename='rank_card.png'), ephemeral=True)
-
+            await interaction.followup.send(file=dFile(fp=buffer, filename='rank_card.png'), ephemeral=True)
+        except Exception as j:
+            log.exception(j)
+            return await interaction.followup.send_message(j)
     @activity_cooldown
     @app_commands.command()
     async def getavatar(self, interaction: discord.Interaction, member: discord.Member = None) -> None:

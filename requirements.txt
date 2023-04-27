@@ -1,4 +1,4 @@
-matplotlib
+matplotlib>=3.7.1
 aiohttp
 asyncpg
 discord.py>=2.2.0
@@ -7,6 +7,5 @@ beautifulsoup4
 pillow>=9.3.0
 lxml
 numpy
-psycopg2
-typing_extensions
 line_profiler
+typing_extensions

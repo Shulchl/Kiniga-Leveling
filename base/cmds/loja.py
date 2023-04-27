@@ -82,7 +82,7 @@ class Shop(commands.Cog):
                 return await interaction.followup.send(
                     f"{interaction.user.mention}, ou não existe um item com esse número(ID) "
                     "ou o item não está disponível para compra.", ephemeral=True)
-
+            log.info(result)
             item_id_uui, item_value, item_type, item_lvmin, item_name, item_group, item_value_ori = result
 
             if item_lvmin == None:
@@ -91,13 +91,14 @@ class Shop(commands.Cog):
                 item_value = 0
             if item_value_ori == None:
                 item_value_ori = 0
-
-            user_info = await self.db.fetchrow("""
-                SELECT spark, rank, iventory_id, ori
-                FROM users
-                WHERE id=$1
-            """, str(interaction.user.id))
-
+            user_info = await self.db.fetchrow(
+                """
+                    SELECT spark, rank, iventory_id, ori
+                    FROM users
+                    WHERE id = ($1)
+                """, str(interaction.user.id)
+            )
+            log.info(user_info)
             if not user_info:
                 return await interaction.followup.send(
                     "Usuário não encontrado na database", ephemeral=True
@@ -124,16 +125,16 @@ class Shop(commands.Cog):
                         getCoin = await self.db.execute(
                             '''
                                 UPDATE users 
-                                SET spark = (spark - $3)
-                                WHERE id = ($4)
+                                SET spark = (spark - $1)
+                                WHERE id = ($2)
                                 RETURNING spark
                             ''', item_value, str(interaction.user.id) )
                     else:
                         getCoin = await self.db.execute(
                             '''
                                 UPDATE users 
-                                SET ori = (ori - $3)
-                                WHERE id = ($4)
+                                SET ori = (ori - $1)
+                                WHERE id = ($2)
                                 RETURNING ori
                             ''', item_value_ori, str(interaction.user.id) )
 
@@ -212,7 +213,7 @@ class Shop(commands.Cog):
                         item_type_id, type_, name, group_ 
                     FROM itens 
                     WHERE id=($1)
-                """, str(item_id)
+                """, int(item_id)
             )
             if not result:
                 return await interaction.followup.send(
@@ -239,9 +240,9 @@ class Shop(commands.Cog):
                              SELECT badge::json FROM iventory
                              WHERE iventory_id = (
                                 SELECT iventory_id FROM users
-                                WHERE id=(\'%s\')
+                                WHERE id=($1)
                             )
-                        """ % (interaction.user.id))
+                        """, str(interaction.user.id))
                     data = ast.literal_eval(result[0])
 
                     if group_ not in data:
@@ -260,24 +261,26 @@ class Shop(commands.Cog):
                     data[group_].append(str(id_))
                     data = json.dumps(data)
 
-                    await self.db.fetch(
+                    await self.db.execute(
                         """
-                            UPDATE iventory set badge = \'%s\'
+                            UPDATE iventory set badge = $1
                             WHERE iventory_id = (
                                 SELECT iventory_id FROM users
-                                WHERE id=(\'%s\')
+                                WHERE id=($2)
                             )
-                        """ % (data, interaction.user.id)
+                        """, str(data), str(interaction.user.id)
                     )
                 else:
-                    await self.db.fetch("""
-                        UPDATE iventory SET %s=(\'%s\')
-                        WHERE iventory_id=(
-                            SELECT iventory_id FROM users 
-                            WHERE id = (\'%s\')
-                        )
-                        RETURNING moldura;
-                    """ % (type_, id_, interaction.user.id,))
+                    print(type_, flush=True)
+                    await self.db.execute(
+                        """
+                            UPDATE iventory SET %s=(\'%s\')
+                            WHERE iventory_id=(
+                                SELECT iventory_id FROM users 
+                                WHERE id = (\'%s\')
+                            )
+                        """ % (type_, id_, interaction.user.id)
+                    )
             except Exception as e:
                 log.warning(e)
             else:
@@ -389,6 +392,7 @@ class Shop(commands.Cog):
         except Exception as e:
             await interaction.followup.send(e)
             log.warning(e)
+            
     @desequipar.error
     async def desequipar_error(self, interaction: Interaction, error):
         if isinstance(error, commands.BadArgument):

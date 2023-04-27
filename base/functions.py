@@ -25,11 +25,11 @@ from bs4 import BeautifulSoup
 
 from base.struct import Config
 from base.utilities import utilities
-from base.db.pgUtils import print_psycopg2_exception as pycopg_exception
-
 from asyncpg.pgproto.pgproto import UUID
 
 from discord.utils import format_dt
+
+from base import log, cfg
 
 __all__ = []
 
@@ -37,10 +37,8 @@ __all__ = []
 def __init__(self, bot) -> None:
     self.bot = bot
     self.db = utilities.database(self.bot.loop)
-
-    with open('config.json', 'r') as f:
-        self.cfg = Config(json.loads(f.read()))
-        f.close()
+    self.log = log
+    self.cfg = cfg
 
 
 def print_progress_bar(index, total, label):
@@ -110,16 +108,45 @@ def timeRemaning(seconds):
         d = f"{a} horas {b} minutos"
         return d
 
+async def createTables(self):
+    # CRIA TABLES
+    with open(os.path.join('./base/db', 'tables.sql'), 'r') as e:
+        try:
+            await self.db.execute(e.read())
+
+        except Exception as f:
+            log.exception(f)
+            return f
+
+        return True
+
 
 async def starterRoles(self, msg):
     """
     Adiciona os cargos criados à DB
     """
 
+    # CRIAR TABELAS
+    _tables = await createTables(self)
+    if not _tables:
+        return f"Os cargos não puderam ser criados. {_tables}"
+
+
     classes = self.cfg.ranks
     # x = []
     colors = self.cfg.colors
     count = 0
+
+    if not classes:
+        return f"Parece que você não inseriu nenhuma classe nas configurações."
+    
+    if not colors:
+        return f"Parece que você não inseriu nenhuma cor nas configurações."
+
+    if len(classes) != len(colors):
+        return f"Toda classe precisa ter uma cor e toda cor precisa ter uma classe. "
+        " Verifique se o número de cor é o mesmo que o de classes."
+        f"\n\nNúmero de classes/cor: {len(classes)}/{len(colors)}"        
 
     # await self.db.execute("""
     #     insert into ranks(name, badges, lvmin) select name, img_bdg, lvmin from molds on conflict (name) do nothing returning lvmin;
@@ -169,7 +196,7 @@ async def starterRoles(self, msg):
                 i, len(classes), " progresso de badges criadas")
         finally:
             count += 10
-    print("Todas as classes foram criadas")
+    return "Todas as classes foram criadas"
 
 
 async def starterItens(self):
@@ -332,9 +359,9 @@ async def starterItens(self):
     except Exception as err:
         if isinstance(err, asyncpg.exceptions.PostgresSyntaxError):
             # pass exception to function
-            pycopg_exception(err)
+            log.exception(err)
         else:
-            pycopg_exception(err)
+            log.exception(err)
 
 
 async def get_roles(
@@ -459,17 +486,20 @@ async def get_iventory(self, memberId):
 
 
 def checktype_(type):
-    match str(type).upper():
-        case "MOLDURA":
-            itype = 'molds'
-        case "BANNER":
-            itype = 'banners'
-        case "CARRO":
-            itype = 'cars'
-        case "BADGE":
-            itype = 'badges'
-        case "UTILIZAVEL":
-            itype = 'utilizaveis'
+
+    a = str(type).upper()
+    itype = None 
+
+    if a == "MOLDURA": 
+        itype = 'molds'
+    elif a == "BANNER":
+        itype = 'banners'
+    elif a == "CARRO":
+        itype = 'cars'
+    elif a == "BADGE":
+        itype = 'badges'
+    elif a == "UTILIZAVEL":
+        itype = 'utilizaveis'
 
     return itype
 
@@ -764,9 +794,16 @@ async def inventory_update_key(self, user_inventory_id, group, sub_group: Option
 
     try:
         # Define the query to fetch the current data for the group
-        result = await self.db.fetchrow(
-            "SELECT itens::json FROM iventory WHERE iventory_id = \'%s\' FOR UPDATE" % (user_inventory_id))
-        data = ast.literal_eval(result[0])
+        result = await self.db.fetchval(
+            """
+                SELECT itens::json
+                FROM iventory 
+                WHERE iventory_id = $1 
+                FOR UPDATE
+            """, user_inventory_id
+        )
+        log.info(result)
+        data = ast.literal_eval(result)
         print(data, flush=True)
         if purpose == 'show':
             return data
@@ -830,6 +867,7 @@ async def inventory_update_key(self, user_inventory_id, group, sub_group: Option
         return "ITEM_ADDED_SUCCESSFULLY"
 
     except Exception as f:
+        log.exception(f)
         print(repr(f), flush=True)
 
 

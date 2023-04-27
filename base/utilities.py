@@ -66,18 +66,20 @@ class Database:
             conn = await asyncpg.connect(user=self.user, password=self.password, host=self.host)
 
             if isinstance(err, asyncpg.exceptions.InvalidCatalogNameError):
+                log.error(f'''
+                    Parece que essa database não foi criada ainda...\n {err}
+                ''')
+            elif isinstance(err, asyncpg.exceptions.InsufficientPrivilegeError):
 
-                try:
-                    await conn.execute("""
-                            CREATE DATABASE %(db)s
-                        """ % {'db': cfg.dbName})
-                    await conn.execute('CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" ')
-                except Exception as i:
-                    log.error(i)
+                log.error('''
+                    Você irá precisar criar a database manualmente. 
+                    Após isso, crie a extensão UUID, utilizando 
+                    CREATE EXTENSION IF NOT EXISTS "uuid-ossp"  
+                \n''')
 
             else:
                 # pass exception to function
-                print(err)
+                log.error(err)
 
             await conn.close()
 
@@ -89,11 +91,7 @@ class Database:
 
             # MUDA CONEXÃO PRA 'NONE' EM CASO DE ERRO
             # self.conn = None
-            # CRIA TABLES
-            async with self.pool.acquire() as conn:
-                async with conn.transaction():
-                    with open(os.path.join(__file__, '..\db', 'tables.sql'), 'r') as e:
-                        await conn.execute(e.read())
+            
 
     async def fetch(self, sql: str, *args: Any) -> list:
         async with self.pool.acquire() as conn:
@@ -604,7 +602,7 @@ class Rank:
         bg_draw.rounded_rectangle(
             [(488, 530), (488 + 407, 490 + 162)], 25, fill=(0, 45, 62))  # ori
 
-        ori = Image.open("src\imgs\extra\ori.png")
+        ori = Image.open("src/imgs/extra/ori.png")
         ori = ori.resize((95, 95), Image.NEAREST)
         bg.paste(ori, (510, 548), ori)
         value = f"{int(userSpark):,}".replace(",", ".")
@@ -625,7 +623,7 @@ class Rank:
         else:
             userBirth = "??/??"
 
-        cake = Image.open("src\imgs\extra\cake.png")
+        cake = Image.open("src/imgs/extra/cake.png")
         cake = cake.resize((62, 84), Image.NEAREST)
         bg.paste(cake, (934, 548), cake)
         value = f"{int(userSpark):,}".replace(",", ".")
@@ -894,7 +892,7 @@ class Rank:
         bg_draw.rounded_rectangle(
             [(35, int(1280-524)), (int(1280-840), int(1280-387))], 25, fill=(0, 45, 62))  # spark
 
-        spark = Image.open("src\imgs\extra\spark.png")
+        spark = Image.open("src/imgs/extra/spark.png")
         spark = spark.resize((110, 110), Image.Resampling.NEAREST)
         bg.paste(spark, (45, int(1280-504)), spark)
         value = f"{int(userSpark):,}".replace(",", ".")
@@ -907,7 +905,7 @@ class Rank:
         bg_draw.rounded_rectangle(
             [(35, int(1280-352)), (int(1280-840), int(1280-215))], 25, fill=(0, 53, 49))  # ori
 
-        ori = Image.open("src\imgs\extra\ori.png")
+        ori = Image.open("src/imgs/extra/ori.png")
         ori = ori.resize((100, 100), Image.Resampling.NEAREST)
         bg.paste(ori, (50, int(1280-330)), ori)
         value = f"{int(userOri):,}".replace(",", ".")
@@ -929,7 +927,7 @@ class Rank:
             userBirth = "??/??"
 
         # image
-        cake = Image.open("src\imgs\extra\cake.png")
+        cake = Image.open("src/imgs/extra/cake.png")
         cake = cake.resize((70, 92), Image.Resampling.NEAREST)
         bg.paste(cake, (65, int(1280-155)), cake)
 
@@ -1102,8 +1100,8 @@ class Rank:
     def drawiventory(self, banner, spark, ori, items, total) -> BytesIO:
 
         # STATIC IMAGES
-        spark_img = Image.open("src/imgs/extra/Spark.png")
-        ori_img = Image.open("src/imgs/extra/Ori.png")
+        spark_img = Image.open("src/imgs/extra/spark.png")
+        ori_img = Image.open("src/imgs/extra/ori.png")
 
         icon = Image.open(
             "src/imgs/extra/inventario/Inventory-Icon-Spinovel.png")
@@ -1377,8 +1375,8 @@ class shopNew:
 
     def drawloja(self, total, spark, ori, items, banner=None) -> BytesIO:
         try:
-            spark_img = Image.open("src/imgs/extra/Spark.png")
-            ori_img = Image.open("src/imgs/extra/Ori.png")
+            spark_img = Image.open("src/imgs/extra/spark.png")
+            ori_img = Image.open("src/imgs/extra/ori.png")
             shopCar_img = Image.open(
                 "src/imgs/extra/loja/Carrinho-Loja-Colorido.png")
 
