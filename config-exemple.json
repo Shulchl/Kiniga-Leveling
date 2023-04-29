@@ -4,6 +4,7 @@
     "postgresql_user": "postgres",
     "postgresql_password": "",
     "postgresql_host": "localhost",
+    "report_to": 112123131313,
 
     "bot_mail": "",
     "bot_mailpass": "",

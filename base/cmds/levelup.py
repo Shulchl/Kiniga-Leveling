@@ -6,9 +6,11 @@ from random import randint
 from discord.ext import commands
 
 from base.utilities import utilities
+from base.functions import get_profile_info
+
 from discord.ext.commands.errors import MissingPermissions, RoleNotFound
 
-from base.struct import Config
+from base import cfg, log
 
 # CLASS LEVELING
 
@@ -20,22 +22,24 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
         self.cd_mapping = commands.CooldownMapping.from_cooldown(
             1, 0.1, commands.BucketType.member)
 
-        with open('config.json', 'r') as f:
-            self.cfg = Config(json.loads(f.read()))
+        self.cfg = cfg
 
         #self.brake = []
     def cog_load(self):
         sys.stdout.write(f'Cog carregada: {self.__class__.__name__}\n')
         sys.stdout.flush()
 
+    def cog_unload(self):
+        sys.stdout.write(f'Cog descarregada: {self.__class__.__name__}\n')
+        sys.stdout.flush()
 
-
-    def has_db(message):
-        a = self.db.fetch(
+    async def has_db(message):
+        a = await self.db.fetch(
             """
                 SELECT name FROM users WHERE id=%s LIMIT 1
             """ % (message.author.id)
         )
+        log.error("\n\nuser check\n\n", flush=True)
         return a != None
 
     @commands.before_invoke(has_db)
@@ -49,40 +53,18 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
         bucket = self.cd_mapping.get_bucket(message)
 
         if not bucket.update_rate_limit():
-            aId = message.author.id
+            member_id = message.author.id
 
-            user_rank, user_xp, user_xptotal, user_id, user_iventory_id = await self.db.fetchrow(
-                """
-                    SELECT rank, xp, xptotal, id, iventory_id 
-                    FROM users
-                    WHERE id=(\'%s\')
-                """ % (aId, )
-            )
-            
-            if not user_id:
-                user_rank, user_xp, user_xptotal, user_id, user_iventory_id = await self.db.execute(
-                    """
-                        INSERT INTO users (id, rank, xp, xptotal, user_name) 
-                        VALUES (\'%s\', 0, 0, 0, \'%s\')
-                        RETURNING rank, xp, xptotal, id, iventory_id;
-                    """ % (aId, message.author.name, )
-                )
-                
-                await self.db.execute("""
-                        INSERT INTO iventory ( iventory_id, itens ) VALUES ( \'%s\',  '%s' );
-                    """ % ( user_iventory_id,
-                        '{"Badge": {"rank": {"ids": {}}, "equipe": {"ids": {}}, "moldura": {"ids": {}}, "apoiador": {"ids": {}}}, "Carro": {"ids": {}}, "Banner": {"ids": {}}, "Moldura": {"rank": {"ids": {}}, "equipe": {"ids": {}}, "moldura": {"ids": {}}, "apoiador": {"ids": {}}}, "Utilizavel": {"ids": {}}}', 
-                    )
-                )
-                current_xp = 0
-                return
-            
+            user_ = await get_profile_info(self, member_id, message.author.name)
+
+            user_id, user_rank, user_xp, user_xptotal, info, spark, ori, user_iventory_id, birth, rank_id, user_name, email = user_
+
             if user_rank >= 80:
                 return
             
             lvUpChannel = self.bot.get_channel(1009074998889164880)
             spark = randint(self.cfg.coinsmin, self.cfg.coinsmax)
-            # result = await self.db.fetch(f"SELECT rank, xp, xptotal FROM users WHERE id=('{aId}')")
+            # result = await self.db.fetch(f"SELECT rank, xp, xptotal FROM users WHERE id=('{member_id}')")
             expectedXP = randint(self.cfg.min_message_xp,
                                  self.cfg.max_message_xp)
             current_xp = user_xp + expectedXP
@@ -96,8 +78,7 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
                             spark = ( spark + %s ) 
                         WHERE id = ( \'%s\' )
                         RETURNING rank
-                    """ % (user_rank + 1, expectedXP, spark, aId, ))
-                    log.info(rank)
+                    """ % (user_rank + 1, expectedXP, spark, member_id, ))
 
                     await lvUpChannel.send(
                         "> %s__, você subiu para o nível %s!__ \n> `+%s sparks +%s pontos de experiência.`"
@@ -114,13 +95,11 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
                         lambda r: r.name == rankNames[0][0], 
                             message.guild.roles
                     ) or rankNames[0][0]
-                    log.info(nextRank)
                     # print([x[0] for x in rankNames])
                     prevRank = [
                         x[0] for x in rankNames if x[0] in self.cfg.ranks and x[0] != (
                         rankNames[0][0] if rankNames[0][0] != "Novato" else "qualquercoisa")
                     ]
-                    log.info(prevRank)
                     # print(prevRank)
                     try:
                         if nextRank in message.author.roles:
@@ -169,7 +148,7 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
                         xptotal=(xptotal + %s), 
                         spark=(spark + %s) 
                     WHERE id=\'%s\'
-                """ % (current_xp, current_xp + expectedXP, spark, aId, ))
+                """ % (current_xp, current_xp + expectedXP, spark, member_id, ))
 
             # self.brake.append(message.author.id)
             #await asyncsleep(randint(0, 5))  #
@@ -178,4 +157,4 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
 
 async def setup(bot: commands.Bot) -> None:
     # , guilds=[ discord.Object(id=943170102759686174), discord.Object(id=1010183521907789977)]
-    await bot.add_cog(Levelup(bot))
+    await bot.add_cog(Levelup(bot), guilds=[discord.Object(id=943170102759686174)])

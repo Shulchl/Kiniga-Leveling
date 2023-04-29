@@ -7,40 +7,35 @@ import sys
 
 from discord.ext import commands
 from discord import app_commands
-from typing import Literal
-from typing import Optional
+from discord import File as dFile
+
+from typing import Literal, Optional
 
 from discord.app_commands.errors import AppCommandError
 
-from base.utilities import utilities
-from base.views import reviewButton, publishButton, editItemModal
-from base.struct import Config
-from base.mail import Mail
-from base.webhooks import *
 from base.functions import (
+    longest_cooldown,
+    activity_cooldown,
     error_delete_after,
     getfile,
-    inventory_update_key
+    inventory_update_key,
+    report_error,
+    send_error_response
 )
-
-from discord import File as dFile
+from base.views import reviewButton, publishButton, editItemModal
+from base.utilities import utilities
+from base.webhooks import *
+from base.mail import Mail
+from base import cfg, log
 
 # Mod Functions Commands Class
-
-longest_cooldown = app_commands.checks.cooldown(
-    2, 300.0, key=lambda i: (i.guild_id, i.user.id))
-activity_cooldown = app_commands.checks.cooldown(
-    1, 5.0, key=lambda i: (i.guild_id, i.user.id))
-
-
 class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
         self.db = utilities.database(self.bot.loop)
 
-        with open('config.json', 'r') as f:
-            self.cfg = Config(json.loads(f.read()))
+        self.cfg = cfg
 
         # TRELLO THINGS
         self.trelloList = str(self.cfg.trelloList)
@@ -51,48 +46,65 @@ class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
             app_commands.ContextMenu(
                 name='Avaliar história!',
                 callback=self.analise,
+                type=discord.AppCommandType.message
             ),
             app_commands.ContextMenu(
                 name='Publicar história!',
                 callback=self.publish,
+                type=discord.AppCommandType.message
             ),
             app_commands.ContextMenu(
                 name='Remover cartão!',
                 callback=self.trello_cart_remove,
+                type=discord.AppCommandType.message
             ),
             app_commands.ContextMenu(
                 name='Alterar cartão!',
                 callback=self.trello_cart_alter,
+                type=discord.AppCommandType.message
             )
         ]
-        for a in self.ctx_menu:
-            self.bot.tree.add_command(a)
-
-    async def cog_app_command_error(
-            self,
-            interaction: discord.Interaction,
-            error: AppCommandError
-    ):
-        if isinstance(
-                error,
-                app_commands.CommandOnCooldown
-        ):
-            return await error_delete_after(interaction, error)
-        if isinstance(
-                error,
-                app_commands.TransformerError
-        ):
-            return await interaction.response.send_message(
-                "O texto deve conter 80 caracteres ou menos, contando espaços.", ephemeral=True)
-
-    async def cog_unload(self) -> None:
-        for a in self.ctx_menu:
-            self.bot.tree.remove_command(
-                a.name, type=a.type)
+        for item in self.ctx_menu:
+            self.bot.tree.add_command(item)
 
     def cog_load(self):
         sys.stdout.write(f'Cog carregada: {self.__class__.__name__}\n')
         sys.stdout.flush()
+
+    def cog_unload(self):
+        for item in self.ctx_menu:
+            self.bot.tree.remove_command(item.name, type=item.type)
+            sys.stdout.write(f'"{item.name}" removido do menu.\n')
+            sys.stdout.flush()
+
+        sys.stdout.write(f'Cog descarregada: {self.__class__.__name__}\n')
+        sys.stdout.flush()
+
+    async def cog_app_command_error(
+        self, 
+        interaction: discord.Interaction, 
+        error: AppCommandError
+    ):
+        if isinstance(error, app_commands.CommandOnCooldown):
+            return await error_delete_after(interaction, error)
+
+        elif isinstance(error, app_commands.TransformerError):
+            res = "O texto deve conter 80 caracteres ou menos, contando espaços."
+
+        elif isinstance(error, commands.BadArgument):
+            if error.command.name in ['usar', 'equipar', 'desequipar', 'canotbuy', 'canbuy' ]:
+                res = "Não existe um item com esse número(ID) ou o item não está disponível para compra."
+
+        elif isinstance(error, commands.MissingRequiredArgument):
+            if error.command.name in ['comprar', 'usar', 'equipar', 'desequipar', 'canotbuy', 'canbuy' ]:
+                res = "```Você não tem esse item.```"
+
+        else:
+            
+            await report_error(self, interaction, error)
+            res = "Ocorreu um erro inesperado. Favor, tente novamente.\nO errro já foi relatado à um administrador."
+        
+        await send_error_response(self, interaction, res)
 
     @commands.hybrid_group(name='opt')
     @commands.is_owner()
@@ -295,7 +307,7 @@ class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
                 file=dFile(rf'./_temp/h/{filename}')
             )  # , view=publishButton(user_discord=authorDiscord, hid=str(historyID), message=message)
 
-            tResponse = addCard.get_response(
+            tResponse = TrelloFunctions.add_card(
                 novelId=str(historyID),
                 desc=str(content),
                 trelloList=self.trelloList,
@@ -336,6 +348,7 @@ class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
         authorDiscord, authorEmail, historyID, filename, content = await self.getinfo(message)
 
         view = publishButton(user_discord=authorDiscord, hid=str(historyID), message=message)
+        
         await interaction.followup.send(
             "Deseja publicar a história? \n`Use o botão \"Sim\" para prosseguir.`",
             view=view, ephemeral=True)
@@ -378,4 +391,4 @@ class ModFunc(commands.Cog, name='Editoria', command_attrs=dict(hidden=True)):
 
 async def setup(bot: commands.Bot) -> None:
     # guilds=[discord.Object(id=943170102759686174)]
-    await bot.add_cog(ModFunc(bot))
+    await bot.add_cog(ModFunc(bot), guilds=[discord.Object(id=943170102759686174)])

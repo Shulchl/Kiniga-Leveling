@@ -3,15 +3,15 @@ import json
 from base.struct import Config
 from requests.exceptions import HTTPError
 
+from base import cfg, log
 
-class addCard():
+
+class TrelloFunctions():
     
     def __init__(self) -> None:
-        
-        with open('config.json', 'r') as f:
-            self.cfg = Config(json.loads(f.read()))
+        self.cfg = cfg
 
-    def get_response(novelId: str, desc: str, trelloList, trelloKey, trelloToken):
+    def add_card(novelId: str, desc: str, trelloList, trelloKey, trelloToken):
         novelId = '#ID ' + str(''.join(novelId.split('#')))
 
         # PEGA LISTAS
@@ -49,6 +49,69 @@ class addCard():
 
         return res
 
+    async def get_last_card(self):
+
+        query = {
+            'key': self.cfg.trelloKey,
+            'token': self.cfg.trelloToken
+        }
+        headers = {'Content-Type': 'application/json'}
+
+        with requests.Session() as s:
+            response = s.request(
+                'GET',
+                'https://api.trello.com/1/lists/' \
+                f'{self.cfg.trelloList}/cards?fields=name,labels,shortUrl,desc', 
+                params=query,
+                headers=headers)
+
+            if response.ok:
+                log.info("Cards requisitados")
+
+        items = []
+        item_ = json.loads(response.text)
+
+        for item in item_:
+
+            # Pule a tag de embelezamento
+
+            if item["name"] == "HISTÓRIAS ACEITAS": continue
+            
+            '''
+                Se:
+                - Não tiver capa
+                - Não estiver curada
+                - Não tiver acesso ao link do capítulo
+                pule.
+            '''
+
+            colors = []
+            for i in item["labels"]:
+                colors.append(i["color"])
+            
+
+            if "yellow" in colors: continue
+            if "red_dark" in colors: continue
+            if "orange_dark" in colors: continue
+
+            this_item = {}
+
+            this_item["title"] = str(item["name"])
+
+            desc = ' \n'.join([x for x in str(item["desc"]).split("\n") if x != ''])
+            #print(desc,flush=True)
+            desc = (desc[:4096] + '..') if len(desc) > 4096 else desc
+            this_item["description"] = desc
+            this_item["url"] = item["shortUrl"]
+
+            this_item = json.dumps(this_item, indent=2)
+
+            items.append(this_item)
+
+        #print(items, flush=True)
+        #items = json.dumps(items, indent=2)
+        return items
+
 
         # Python pretty print JSON
         #json_formatted_str = json.dumps(response.json(), indent=4, ensure_ascii=False)
@@ -58,3 +121,5 @@ class addCard():
 # exactly as it was in the original request.
 #data = '{\n  "key": "{APIKey}",\n  "callbackURL": "http://www.mywebsite.com/trelloCallback",\n  "idModel":"4d5ea62fd76aa1136000000c",\n  "description": "My first webhook"\n}'
 #response = requests.post('https://api.trello.com/1/tokens/{APIToken}/webhooks/', headers=headers, data=data)
+
+trello = TrelloFunctions()

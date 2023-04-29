@@ -28,6 +28,8 @@ from base.utilities import utilities
 from asyncpg.pgproto.pgproto import UUID
 
 from discord.utils import format_dt
+from discord import app_commands
+
 
 from base import log, cfg
 
@@ -40,6 +42,10 @@ def __init__(self, bot) -> None:
     self.log = log
     self.cfg = cfg
 
+longest_cooldown = app_commands.checks.cooldown(
+    2, 300.0, key=lambda i: (i.guild_id, i.user.id))
+activity_cooldown = app_commands.checks.cooldown(
+    1, 5.0, key=lambda i: (i.guild_id, i.user.id))
 
 def print_progress_bar(index, total, label):
     n_bar = 20  # Progress bar width
@@ -51,13 +57,77 @@ def print_progress_bar(index, total, label):
 
 
 async def error_delete_after(interaction, error):
-    return await interaction.response.send_message(
-        content="%s você poderá usar este comando de novo." % format_dt(
-            datetime.datetime.now() +
-            datetime.timedelta(seconds=error.retry_after),
-            'R'),
-        delete_after=int(error.retry_after) - 1)
+    if  interaction.response.type == discord.InteractionResponseType.channel_message:
+        return await interaction.response.send_message(
+            content="%s você poderá usar este comando de novo." % format_dt(
+                datetime.datetime.now() +
+                datetime.timedelta(seconds=error.retry_after),
+                'R'),
+            delete_after=int(error.retry_after) - 1)
 
+    elif interaction.response.type == discord.InteractionResponseType.deferred_message_update:
+        return await interaction.followup.send(
+            content="%s você poderá usar este comando de novo." % format_dt(
+                datetime.datetime.now() +
+                datetime.timedelta(seconds=error.retry_after),
+                'R'),
+            delete_after=int(error.retry_after) - 1)
+
+async def report_error(self, interaction, error):
+    log.exception(error)
+    admin = self.bot.get_user(int(self.cfg.report_to))
+
+    embed = discord.Embed(title="Relatório de erros", color=0xe01b24)
+    embed.set_author(name=interaction.user, icon_url=interaction.user.display_avatar.url)
+    embed.add_field(name=error.command.name, value=error.__cause__, inline=False)
+    embed.set_footer(text=datetime.datetime.now())
+
+    await admin.send(embed=embed)
+
+async def initiate_user(self, member_id, member_name):
+    user_ = await self.db.execute(
+        """
+            INSERT INTO users (id, rank, xp, xptotal, user_name) 
+            VALUES (\'%s\', 0, 5, 5, \'%s\')
+            ON CONFLICT (id) DO NOTHING
+            RETURNING *;
+        """ % (str(member_id), message.author.name, )
+    )
+
+    user_id, rank, xp, xptotal, info, spark, ori, iventory_id, birth, rank_id, user_name, email = user_
+    # id, rank, xp, xptotal, info, spark, ori, iventory_id, birth, rank_id, user_name, email
+
+    await self.db.execute("""
+            INSERT INTO iventory (  iventory_id, itens ) 
+            VALUES ( \'%s\',  '%s' )
+            ON CONFLICT (iventory_id) DO NOTHING
+            RETURNING moldura, car, banner, badge::jsonb
+
+        """ % ( iventory_id,
+            '{"Badge": {"rank": {"ids": {}}, "equipe": {"ids": {}}, "moldura": {"ids": {}}, "apoiador": {"ids": {}}}, "Carro": {"ids": {}}, "Banner": {"ids": {}}, "Moldura": {"rank": {"ids": {}}, "equipe": {"ids": {}}, "moldura": {"ids": {}}, "apoiador": {"ids": {}}}, "Utilizavel": {"ids": {}}}', 
+        )
+    )
+
+    return user_
+
+async def get_profile_info(self, member_id, member_name):
+    user_ = await self.db.fetchrow(
+        """
+            SELECT * 
+            FROM users
+            WHERE id=($1)
+        """, str(member_id)
+    )
+    if not user_:
+        user_ = await self.initiate_user(str(member_id), member_name)
+
+    return user_
+
+async def send_error_response(self, interaction, msg):
+    if interaction.response.type == discord.InteractionResponseType.channel_message:
+        return await interaction.response.send_message(msg, ephemeral=True)
+    elif interaction.response.type == discord.InteractionResponseType.deferred_message_update:
+        return await interaction.followup.send(msg, ephemeral=True)  
 
 def convert(time):
     """
@@ -212,157 +282,183 @@ async def starterItens(self):
     banners = [filename for filename in os.listdir(
         'src/imgs/banners') if filename.endswith('.png')]
 
-    molduras = [filename for filename in os.listdir(
+    molduras_rank = [filename for filename in os.listdir(
         'src/imgs/molduras/molduras-loja') if filename.endswith('.png')]
-
-    try:
+    molduras_extra = [filename for filename in os.listdir(
+        'src/imgs/molduras/molduras-perfil/bordas/extra') if filename.endswith('.png')]
+    sys.stdout.write(str(molduras_extra))
+    sys.stdout.flush()
+    # START MOLDS INSERT
+    for i, item in enumerate(molduras_rank):
+        item_name = ' '.join(item.split('-'))[0:-4]
         try:
-            # START MOLDS INSERT
-            for i, item in enumerate(molduras):
-                print_progress_bar(
-                    i, len(molduras), " progresso de molduras criadas")
-                item_name = ' '.join(item.split('-'))[0:-4]
-                try:
-                    await self.db.execute("""
-                        INSERT INTO molds (
-                            name, lvmin, canbuy, 
-                            img, 
-                            imgxp, 
-                            img_bdg, 
-                            img_profile, 
-                            img_mold_title
-                        ) VALUES ('%(name)s', 0, True,
-                            'src/imgs/molduras/molduras-loja/%(item)s',
-                            'src/imgs/molduras/molduras-perfil/xp-bar/%(item)s',
-                            'src/imgs/badges/rank/%(item)s',
-                            'src/imgs/molduras/molduras-perfil/bordas/rank/%(item)s', 
-                            'src/imgs/molduras/molduras-perfil/titulos/%(item)s'
-                        ) ON CONFLICT (name) DO NOTHING
-                    """ % {'name': item_name, 'item': item, })
-                except Exception as o:
-                    raise (o)
-                else:
-                    print_progress_bar(
-                        i, len(molduras), " progresso de molduras criadas")
-
-            print("Atualizando lvmin das badges...", flush=True)
-            await self.db.fetch(
-                """
-                    UPDATE badges SET lvmin = (
-                        SELECT lvmin FROM ranks WHERE ranks.name = badges.name
-                    )
-                """
-            )
-            print("Atualizando lvmin das molduras...", flush=True)
-            await self.db.fetch(
-                """
-                    UPDATE molds SET lvmin = (
-                        SELECT lvmin FROM ranks WHERE ranks.name = molds.name
-                    )
-                """
-            )
-        except Exception as e:
-            raise e
-        else:
-            print("Todas as molduras e badges foram criadas e atualizadas")
-        # END MOLDS INSERT
-
-        # START BANNERS INSERT
-
-        for i, item in enumerate(banners):
-            print_progress_bar(
-                i, len(banners), " progresso de banners criadas")
-            item_name = ' '.join(item.split('-'))[0:-4]
-            try:
-                await self.db.execute("""
-                    INSERT INTO banners (
-                        name, 
-                        canbuy,
-                        img_loja, 
-                        img_perfil 
-                    ) 
-                    VALUES (
-                        '%(name)s', true,
-                        'src/imgs/banners/%(item)s',
-                        'src/imgs/banners/%(item)s' ) 
-                    ON CONFLICT (name) DO NOTHING 
-                """ % {'name': item_name, 'item': item, })
-            except Exception as o:
-                raise (o)
+            '''
+                - moldura loja
+                - barra de xp
+                - badge
+                - moldura perfil
+                - barra em que fica o nome do rank
+            '''
+            await self.db.execute("""
+                INSERT INTO molds (
+                    name, lvmin, canbuy, 
+                    img, 
+                    imgxp, 
+                    img_bdg, 
+                    img_profile, 
+                    img_mold_title
+                ) VALUES ('%(name)s', 0, True,
+                    'src/imgs/molduras/molduras-loja/%(item)s',
+                    'src/imgs/molduras/molduras-perfil/xp-bar/%(item)s',
+                    'src/imgs/badges/rank/%(item)s',
+                    'src/imgs/molduras/molduras-perfil/bordas/rank/%(item)s', 
+                    'src/imgs/molduras/molduras-perfil/titulos/%(item)s'
+                ) ON CONFLICT (name) DO NOTHING
+            """ % {'name': item_name, 'item': item, })
+        except Exception as o:
+            if isinstance(o, asyncpg.exceptions.PostgresSyntaxError):
+                continue
             else:
-                print_progress_bar(
-                    i, len(banners), " progresso de banners criadas")
-        print("Todas os banners foram criadas")
-
-        # END BANNERS INSERT
-
-        # ADD BADGES INSERT
-        await self.db.execute("""
-            insert into badges(name, img, lvmin) select name, img_bdg, lvmin from molds on conflict (name) do nothing;
-        """)
-        print("Todas as badges foram criadas")
-
-        # UTILIZAVEIS
-        boost_path = "src/imgs/utilizaveis/boost"
-        for i, file in enumerate(os.path.abspath(boost_path)):
-            if file.endswith('.png'):
-                await self.db.execute(
-                    """
-                        INSERT INTO utilizaveis (
-                            name, 
-                            img, 
-                            value
-                        ) VALUES (
-                            file[:-4],
-                            os.path.join(boost_path, file),
-                            90000 * ((i+1)*2)
-
-                        ) ON CONFLICT name DO NOTHING
-
-                    """
-                )
-                print("Item %s criado." % (file[:-4]))
-
-        # CONSUMABLE ITENS
-        consummable_path = "src/imgs/utilizaveis"
-        for i, file in enumerate(os.path.abspath(boost_path)):
-            if file.endswith('.png'):
-                await self.db.execute(
-                    """
-                        INSERT INTO utilizaveis (
-                            name, canbuy, value, img
-                        ) VALUES (
-                            '%s', %s, %s, '%s'
-                        ) ON CONFLICT name DO NOTHING
-                    """ % (file[:-4], True, 15000, os.path.join(consummable_path, file))
-                )
-                print("Item consumível %s criado." % (file[:-4]))
-
-        # TITULOS NÃO SÃO MAIS SUPORTADOS
-
-        # count = 0
-        # for i in titles:
-        #     # START TITLES INSERT
-        #     nome = re.search(r'\-(.*?).png', i).group(1)
-        #     print(nome, i, title_value[int(titles.index(i))])
-        #     await self.db.execute(f"""
-        #         INSERT INTO titles (
-        #             name, localimg, canbuy, value
-        #         ) VALUES ('{nome}',
-        #                 'src/imgs/titulos/{i}',
-        #                 true, {title_value[int(titles.index(i))]}
-        #         ) ON CONFLICT (name) DO NOTHING
-        #     """)
-        #     count += 1
-        # END TITLES INSERT
-
-    except Exception as err:
-        if isinstance(err, asyncpg.exceptions.PostgresSyntaxError):
-            # pass exception to function
-            log.exception(err)
+                raise o
         else:
-            log.exception(err)
+            print_progress_bar(
+                i, len(molduras_rank), " progresso de molduras de rank criadas")
+    # Molduras "extra""
+    for i, item in enumerate(molduras_extra):
+        item_name = ' '.join(item.split('-'))[0:-4]
+        sys.stdout.write(item_name)
+        sys.stdout.flush()
+        sys.stdout.write(item)
+        sys.stdout.flush()
+        try:
 
+            await self.db.execute("""
+                INSERT INTO molds (
+                    name, lvmin, canbuy, 
+                    group_, category,
+                    img, 
+                    img_profile
+                ) VALUES (
+                    '%(name)s', 0, True, 
+                    'moldura', 'Lendário',
+                    'src/imgs/molduras/molduras-perfil/bordas/extra/%(item)s',
+                    'src/imgs/molduras/molduras-perfil/bordas/extra/%(item)s'
+                ) ON CONFLICT (name) DO NOTHING
+            """ % {'name': item_name, 'item': item, })
+            print_progress_bar(i, len(molduras_extra), " progresso de molduras 'extras' criadas")
+        except Exception as f:
+            if isinstance(f, asyncpg.exceptions.PostgresSyntaxError):
+                continue
+            else:
+                raise f
+
+    sys.stdout.write("\nAtualizando lvmin das badges...")
+    sys.stdout.flush()
+    await self.db.fetch(
+        """
+            UPDATE badges SET lvmin = (
+                SELECT lvmin FROM ranks WHERE ranks.name = badges.name
+            )
+        """
+    )
+    sys.stdout.write("\nAtualizando lvmin das molduras...")
+    sys.stdout.flush()
+    await self.db.fetch(
+        """
+            UPDATE molds SET lvmin = (
+                SELECT lvmin FROM ranks WHERE ranks.name = molds.name
+            )
+        """
+    )
+    sys.stdout.write("\nTodas as molduras e badges foram criadas e atualizadas")
+    sys.stdout.flush()
+    # END MOLDS INSERT
+
+    # START BANNERS INSERT
+
+    for i, item in enumerate(banners):
+        item_name = ' '.join(item.split('-'))[0:-4]
+        await self.db.execute("""
+            INSERT INTO banners (
+                name, 
+                canbuy,
+                img_loja, 
+                img_perfil 
+            ) 
+            VALUES (
+                '%(name)s', true,
+                'src/imgs/banners/%(item)s',
+                'src/imgs/banners/%(item)s' ) 
+            ON CONFLICT (name) DO NOTHING 
+        """ % {'name': item_name, 'item': item, })
+        print_progress_bar(i, len(banners), " progresso de banners criadas")
+    sys.stdout.write("\nTodas os banners foram criadas")
+    sys.stdout.flush()
+
+    # END BANNERS INSERT
+
+    # ADD BADGES INSERT
+    await self.db.execute("""
+        insert into badges(name, img, lvmin) select name, img_bdg, lvmin from molds on conflict (name) do nothing;
+    """)
+    sys.stdout.write("\nTodas as badges foram criadas")
+    sys.stdout.flush()
+
+    # UTILIZAVEIS
+    boost_path = "src/imgs/utilizaveis/boost"
+    for i, file in enumerate(os.path.abspath(boost_path)):
+        if file.endswith('.png'):
+            await self.db.execute(
+                """
+                    INSERT INTO utilizaveis (
+                        name, 
+                        img, 
+                        value
+                    ) VALUES (
+                        file[:-4],
+                        os.path.join(boost_path, file),
+                        90000 * ((i+1)*2)
+
+                    ) ON CONFLICT name DO NOTHING
+
+                """
+            )
+            sys.stdout.write("\nItem %s criado." % (file[:-4]))
+            sys.stdout.flush()
+
+    # CONSUMABLE ITENS
+    consummable_path = "src/imgs/utilizaveis"
+    for i, file in enumerate(os.path.abspath(boost_path)):
+        if file.endswith('.png'):
+            await self.db.execute(
+                """
+                    INSERT INTO utilizaveis (
+                        name, canbuy, value, img
+                    ) VALUES (
+                        '%s', %s, %s, '%s'
+                    ) ON CONFLICT name DO NOTHING
+                """ % (file[:-4], True, 15000, os.path.join(consummable_path, file))
+            )
+            sys.stdout.write("\nItem consumível %s criado." % (file[:-4]))
+            sys.stdout.flush()
+
+    # TITULOS NÃO SÃO MAIS SUPORTADOS
+
+    # count = 0
+    # for i in titles:
+    #     # START TITLES INSERT
+    #     nome = re.search(r'\-(.*?).png', i).group(1)
+    #     print(nome, i, title_value[int(titles.index(i))])
+    #     await self.db.execute(f"""
+    #         INSERT INTO titles (
+    #             name, localimg, canbuy, value
+    #         ) VALUES ('{nome}',
+    #                 'src/imgs/titulos/{i}',
+    #                 true, {title_value[int(titles.index(i))]}
+    #         ) ON CONFLICT (name) DO NOTHING
+    #     """)
+    #     count += 1
+    # END TITLES INSERT
 
 async def get_roles(
         member: discord.Member,
@@ -1054,9 +1150,10 @@ async def getfile(message):
         r.raise_for_status()
         with open('./_temp/h/%s' % (filename), 'w') as f:
             f.write(r.text)
-        f.close()
+            f.close()
         res = r.text
 
     except Exception as e:
         raise (e)
     return filename, res
+

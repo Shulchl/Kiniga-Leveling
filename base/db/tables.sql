@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS public.users (
     birth text DEFAULT '???',
     rank_id bigint,
     user_name text NOT NULL,
-    email VARCHAR, 
+    email VARCHAR,
+    created_at DATETIME NOT NULL DEFAULT now(),
     PRIMARY KEY (iventory_id)
 );
 
@@ -51,7 +52,7 @@ CREATE TABLE IF NOT EXISTS public.molds (
     name text COLLATE pg_catalog."default" NOT NULL UNIQUE,
     img text COLLATE pg_catalog."default" NOT NULL,
     imgxp text,
-    img_bdg text NOT NULL,
+    img_bdg text,
     type_ text DEFAULT 'Moldura',
     img_profile text NOT NULL,
     value integer DEFAULT 0,
@@ -61,7 +62,9 @@ CREATE TABLE IF NOT EXISTS public.molds (
     lvmin int DEFAULT 0,
     group_ text DEFAULT 'rank',
     category text DEFAULT 'Comum',
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    created_at DATETIME NOT NULL DEFAULT now(),
+    updated_at DATETIME NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.badges (
@@ -75,7 +78,9 @@ CREATE TABLE IF NOT EXISTS public.badges (
     group_ text DEFAULT 'rank',
     category text DEFAULT 'Comum',
     id uuid DEFAULT uuid_generate_v4(),
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    created_at DATETIME NOT NULL DEFAULT now(),
+    updated_at DATETIME NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.banners (
@@ -87,7 +92,9 @@ CREATE TABLE IF NOT EXISTS public.banners (
     value_ori integer DEFAULT 0,
     type_ text DEFAULT 'Banner',
     id uuid DEFAULT uuid_generate_v4(),
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    created_at DATETIME NOT NULL DEFAULT now(),
+    updated_at DATETIME NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.cars (
@@ -98,7 +105,9 @@ CREATE TABLE IF NOT EXISTS public.cars (
     value_ori integer DEFAULT 0,
     type_ text DEFAULT 'Carro',
     id uuid DEFAULT uuid_generate_v4(),
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    created_at DATETIME NOT NULL DEFAULT now(),
+    updated_at DATETIME NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.utilizaveis (
@@ -110,7 +119,9 @@ CREATE TABLE IF NOT EXISTS public.utilizaveis (
     type_ text DEFAULT 'Utilizavel',
     img text NOT NULL,
     category text DEFAULT 'Comum',
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    created_at DATETIME NOT NULL DEFAULT now(),
+    updated_at DATETIME NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.itens (
@@ -129,7 +140,9 @@ CREATE TABLE IF NOT EXISTS public.itens (
     details CHAR,
     item_type_id uuid DEFAULT uuid_generate_v4() UNIQUE,
     group_ text DEFAULT 'rank',
-    category text DEFAULT 'Comum'
+    category text DEFAULT 'Comum',
+    created_at DATETIME NOT NULL DEFAULT now(),
+    updated_at DATETIME NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.shop (
@@ -144,5 +157,7 @@ CREATE TABLE IF NOT EXISTS public.shop (
     img text COLLATE pg_catalog."default",
     details text COLLATE pg_catalog."default",
     type_ text,
-    category text DEFAULT 'Comum'
+    category text DEFAULT 'Comum',
+    created_at DATETIME NOT NULL DEFAULT now(),
+    updated_at DATETIME NOT NULL DEFAULT now()
 );

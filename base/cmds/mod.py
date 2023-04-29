@@ -5,6 +5,7 @@ import random
 import os
 import discord
 import sys
+import ast
 
 from asyncio import sleep as asyncsleep
 from typing import Literal, Optional
@@ -27,6 +28,8 @@ from base.image import ImageCaptcha
 from base.struct import Config
 from base.utilities import utilities
 
+from base.webhooks import trello
+
 
 class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     def __init__(self, bot: commands.Bot) -> None:
@@ -39,12 +42,14 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
 
         if self.cfg.bdayloop:
             self.bdayloop.start()
-
-    def cog_unload(self):
-        self.bdayloop.close()
-
+            
     def cog_load(self):
         sys.stdout.write(f'Cog carregada: {self.__class__.__name__}\n')
+        sys.stdout.flush()
+    
+    def cog_unload(self):
+        self.bdayloop.close()
+        sys.stdout.write(f'Cog descarregada: {self.__class__.__name__}\n')
         sys.stdout.flush()
 
     '''
@@ -168,6 +173,14 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
             )
         else:
             await ctx.send(error, delete_after=5)
+
+    '''
+        s.config sync -> global sync
+        s.config sync ~ -> sync current guild
+        s.config sync * -> copies all global app commands to current guild and syncs
+        s.config sync ^ -> clears all commands from the current guild target and syncs (removes guild commands)
+        s.config sync id_1 id_2 -> syncs guilds with id 1 and 2
+    '''
 
     @config.command(name="sync")
     async def sync(self, ctx, guilds: commands.Greedy[discord.Object],
@@ -855,6 +868,20 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
                 delete_after=5)
         else:
             await ctx.send(error)
+
+    @mod.command(mod='proxnovel')
+    async def proxnovel(self, ctx):
+        await ctx.message.delete()
+
+        trello_items = await trello.get_last_card()
+
+        emb = []
+        for item in trello_items:
+            item = json.loads(item)
+            print(item, flush=True)
+            emb.append(discord.Embed.from_dict(item))
+
+        await ctx.send(embeds=emb)
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Mod(bot))

@@ -10,11 +10,17 @@ import sys
 from base.utilities import utilities
 from base.views import Paginacao, SimpleModalWaitFor as cItemModal
 from base.functions import (
+    longest_cooldown,
+    activity_cooldown,
     get_iventory,
     print_progress_bar as progress,
     error_delete_after,
     checktype_,
-    inventory_update_key)
+    inventory_update_key,
+    report_error,
+    get_profile_info,
+    send_error_response
+)
 from base import log, cfg
 
 from discord import File as dFile, Interaction, app_commands
@@ -30,126 +36,123 @@ botVar = commands.Bot
 botVar.shopItems = []
 botVar.oldImgs = []
 
-longest_cooldown = app_commands.checks.cooldown(
-    2, 300.0, key=lambda i: (i.guild_id, i.user.id))
-activity_cooldown = app_commands.checks.cooldown(
-    1, 5.0, key=lambda i: (i.guild_id, i.user.id))
-
 
 class Shop(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.db = utilities.database(self.bot.loop)
+        self.cfg = cfg
 
-    async def cog_app_command_error(
-            self,
-            interaction: Interaction,
-            error: AppCommandError
-    ):
-        if isinstance(
-                error,
-                app_commands.CommandOnCooldown
-        ):
-            return await error_delete_after(interaction, error)
-        if isinstance(
-                error,
-                app_commands.TransformerError
-        ):
-            return await interaction.response.send_message(
-                "O texto deve conter 80 caracteres ou menos, contando espaços.",
-                ephemeral=True
-            )
     def cog_load(self):
         sys.stdout.write(f'Cog carregada: {self.__class__.__name__}\n')
         sys.stdout.flush()
+
+    def cog_unload(self):
+        sys.stdout.write(f'Cog descarregada: {self.__class__.__name__}\n')
+        sys.stdout.flush()
+
+    async def cog_app_command_error(
+        self, 
+        interaction: discord.Interaction, 
+        error: AppCommandError
+    ):
+        if isinstance(error, app_commands.CommandOnCooldown):
+            return await error_delete_after(interaction, error)
+
+        elif isinstance(error, app_commands.TransformerError):
+            res = "O texto deve conter 80 caracteres ou menos, contando espaços."
+
+        elif isinstance(error, commands.BadArgument):
+            if error.command.name in ['usar', 'equipar', 'desequipar', 'canotbuy', 'canbuy' ]:
+                res = "Não existe um item com esse número(ID) ou o item não está disponível para compra."
+
+        elif isinstance(error, commands.MissingRequiredArgument):
+            if error.command.name in ['comprar', 'usar', 'equipar', 'desequipar', 'canotbuy', 'canbuy' ]:
+                res = "```Você não tem esse item.```"
+
+        else:
+            
+            await report_error(self, interaction, error)
+            res = "Ocorreu um erro inesperado. Favor, tente novamente.\nO errro já foi relatado à um administrador."
+        
+        await send_error_response(self, interaction, res)
 
     # @activity_cooldown
     @app_commands.command(name='comprar')
     async def comprar(self, interaction: Interaction, item_id: int) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
-        try:
-            # await ctx.message.delete()
-            result = await self.db.fetchrow(
-                """
-                    SELECT
-                        i.item_type_id, i.value, i.type_, i.lvmin, i.name, i.group_, i.value_ori
-                    FROM itens i
-                        JOIN shop l ON i.item_type_id = l.item_type_id
-                    WHERE l.id = $1
-                """, int(item_id) )
+        # await ctx.message.delete()
+        result = await self.db.fetchrow(
+            """
+                SELECT
+                    i.item_type_id, i.value, i.type_, i.lvmin, i.name, i.group_, i.value_ori
+                FROM itens i
+                    JOIN shop l ON i.item_type_id = l.item_type_id
+                WHERE l.id = $1
+            """, int(item_id) )
 
-            if not result:
-                return await interaction.followup.send(
-                    f"{interaction.user.mention}, ou não existe um item com esse número(ID) "
-                    "ou o item não está disponível para compra.", ephemeral=True)
-            log.info(result)
-            item_id_uui, item_value, item_type, item_lvmin, item_name, item_group, item_value_ori = result
+        if not result:
+            return await interaction.followup.send(
+                f"{interaction.user.mention}, ou não existe um item com esse número(ID) "
+                "ou o item não está disponível para compra.", ephemeral=True)
 
-            if item_lvmin == None:
-                item_lvmin = 0
-            if item_value == None:
-                item_value = 0
-            if item_value_ori == None:
-                item_value_ori = 0
-            user_info = await self.db.fetchrow(
-                """
-                    SELECT spark, rank, iventory_id, ori
-                    FROM users
-                    WHERE id = ($1)
-                """, str(interaction.user.id)
-            )
-            log.info(user_info)
-            if not user_info:
-                return await interaction.followup.send(
-                    "Usuário não encontrado na database", ephemeral=True
-                )
+        item_id_uui, item_value, item_type, item_lvmin, item_name, item_group, item_value_ori = result
 
-            spark, rank, iventory_id, ori = user_info
+        if item_lvmin == None:
+            item_lvmin = 0
+        if item_value == None:
+            item_value = 0
+        if item_value_ori == None:
+            item_value_ori = 0
 
-            # GET ITENS FROM WITH SPECIFIC KEY
-            # user_itens = await self.db.fetchrow("SELECT itens::json FROM iventory WHERE iventory_id = '%s'" % (iventory_id))
-            # Check if the item_id_uui already exists in the user_itens
-            update_result = await inventory_update_key(
-                self, iventory_id, item_type,
-                str(item_group + '.ids'),
-                str(item_id_uui), 'buy', 1
-            )
+        user_ = await get_profile_info(self, interaction.user.id, interaction.user.name)
+        user_id, rank, xp, xptotal, userInfo, spark, ori, iventory_id, userBirth, rank_id, user_name, email = user_
 
-            if update_result == "ITEM_ALREADY_EXISTS":
-                return await interaction.followup.send(
-                    "Você não pode comprar mais de um item não consumível.", ephemeral=True)
+        # GET ITENS FROM WITH SPECIFIC KEY
+        # user_itens = await self.db.fetchrow("SELECT itens::json FROM iventory WHERE iventory_id = '%s'" % (iventory_id))
+        # Check if the item_id_uui already exists in the user_itens
+        update_result = await inventory_update_key(
+            self, iventory_id, item_type,
+            str(item_group + '.ids'),
+            str(item_id_uui), 'buy', 1
+        )
 
-            if update_result == "ITEM_ADDED_SUCCESSFULLY":
-                if value_type := 'spark' if item_value != 0 else 'ori':
-                    if value_type == 'spark':
-                        getCoin = await self.db.execute(
-                            '''
-                                UPDATE users 
-                                SET spark = (spark - $1)
-                                WHERE id = ($2)
-                                RETURNING spark
-                            ''', item_value, str(interaction.user.id) )
-                    else:
-                        getCoin = await self.db.execute(
-                            '''
-                                UPDATE users 
-                                SET ori = (ori - $1)
-                                WHERE id = ($2)
-                                RETURNING ori
-                            ''', item_value_ori, str(interaction.user.id) )
+        if update_result == "ITEM_ALREADY_EXISTS":
+            return await interaction.followup.send(
+                "Você não pode comprar mais de um item não consumível.", ephemeral=True)
 
-                await interaction.followup.send(
-                    "Você comprou %s! \n%s %s foram descontados de sua carteira e você agora tem %s." % (
-                        item_name, item_value if value_type=='spark'else item_value_ori,
-                        value_type, getCoin[0][0]), ephemeral=True)
-        except Exception as a:
-            await interaction.followup.send(a)
-            log.warning(a)
+        if update_result == "ITEM_ADDED_SUCCESSFULLY":
+            if value_type := 'spark' if item_value != 0 else 'ori':
+                if value_type == 'spark':
+                    await self.db.execute(
+                        '''
+                            UPDATE users 
+                            SET spark = (spark - $1)
+                            WHERE id = ($2)
+                            RETURNING spark
+                        ''', item_value, str(interaction.user.id) )
+                    getCoin = spark - item_value
+                else:
+                    await self.db.execute(
+                        '''
+                            UPDATE users 
+                            SET ori = (ori - $1)
+                            WHERE id = ($2)
+                            RETURNING ori
+                        ''', item_value_ori, str(interaction.user.id) )
+                    getCoin = ori - item_value_ori
+
+            await interaction.followup.send(
+                "Você comprou %s! \n%s %s foram descontados de sua carteira e "
+                "você agora tem %s." % (
+                    item_name, 
+                    item_value if value_type == 'sparks' else item_value_ori,
+                    value_type+'s', getCoin), ephemeral=True)
 
     @app_commands.command(name='usar')
     async def usar(self, interaction: Interaction, item_id: int) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
-        # await ctx.message.delete()
+        # await ctx.message.delete(
         result = await self.db.fetchrow("""
             SELECT i.item_type_id, i.value, i.type_, i.lvmin, i.name, i.group_ 
             FROM itens i
@@ -158,9 +161,7 @@ class Shop(commands.Cog):
             """, item_id,)
 
         if not result:
-            return await interaction.followup.send(
-                f"{interaction.user.mention}, ou não existe um item com esse número(ID) "
-                "ou o item não está disponível para compra.", ephemeral=True)
+            raise commands.BadArgument
 
         item_id_uui, item_value, item_type, item_lvmin, item_name, item_group = result
 
@@ -172,14 +173,9 @@ class Shop(commands.Cog):
         if item_value == None:
             item_value = 0
 
-        user_info = await self.db.fetchrow(f"""
-            SELECT spark, rank, iventory_id FROM users WHERE id=('{interaction.user.id}')
-        """)
-        if not user_info:
-            return await interaction.followup.send(
-                "Usuário não encontrado na database", ephemeral=True
-            )
-        spark, rank, iventory_id = user_info
+        user_ = get_profile_info(self, member_id, message.author.name)
+
+        user_id, rank, user_xp, user_xptotal, info, spark, ori, iventory_id, birth, rank_id, user_name, email = user_
 
         # GET ITENS FROM WITH SPECIFIC KEY
         # user_itens = await self.db.fetchrow("SELECT itens::json FROM iventory WHERE iventory_id = '%s'" % (iventory_id))
@@ -206,207 +202,167 @@ class Shop(commands.Cog):
     @app_commands.command(name='equipar')
     async def equipar(self, interaction: Interaction, item_id: int):
         await interaction.response.defer(thinking=True)
-        try:
+        result = await self.db.fetchrow(
+            """
+                SELECT 
+                    item_type_id, type_, name, group_ 
+                FROM itens 
+                WHERE id=($1)
+            """, int(item_id)
+        )
+        if not result:
+            return await interaction.followup.send(
+                "Esse item não existe.", ephemeral)
+
+        id_, type_, name, group_ = result
+
+        inv = await get_iventory(self, interaction.user.id)
+        inv_ids = []
+        for row in inv:
+            if not row[1]: continue
+            for items in row[1]:
+                l = ast.literal_eval(str(items))
+                for key, value in l.items():
+                    inv_ids.append(key)
+
+        if str(id_) not in inv_ids:
+            raise commands.MissingRequiredArgument
+        # É JSONB PORQUE É POSSÍVEL EQUIPAR MAIS DE 1 BADGE
+        if type_.upper() == "BADGE":
             result = await self.db.fetchrow(
                 """
-                    SELECT 
-                        item_type_id, type_, name, group_ 
-                    FROM itens 
-                    WHERE id=($1)
-                """, int(item_id)
-            )
-            if not result:
+                     SELECT badge::json FROM iventory
+                     WHERE iventory_id = (
+                        SELECT iventory_id FROM users
+                        WHERE id=($1)
+                    )
+                """, str(interaction.user.id))
+            data = ast.literal_eval(result[0])
+
+            if group_ not in data:
+                data[group_] = []
+
+            if str(id_) in data[group_]:
                 return await interaction.followup.send(
-                    "Esse item não existe.", ephemeral)
-
-            id_, type_, name, group_ = result
-
-            inv = await get_iventory(self, interaction.user.id)
-            inv_ids = []
-            for row in inv:
-                if not row[1]: continue
-                for items in row[1]:
-                    l = ast.literal_eval(str(items))
-                    for key, value in l.items():
-                        inv_ids.append(key)
-
-            if str(id_) not in inv_ids:
-                return await interaction.followup.send("Você não tem esse item.", ephemeral=True)
-            try:
-                # É JSONB PORQUE É POSSÍVEL EQUIPAR MAIS DE 1 BADGE
-                if type_.upper() == "BADGE":
-                    result = await self.db.fetchrow(
-                        """
-                             SELECT badge::json FROM iventory
-                             WHERE iventory_id = (
-                                SELECT iventory_id FROM users
-                                WHERE id=($1)
-                            )
-                        """, str(interaction.user.id))
-                    data = ast.literal_eval(result[0])
-
-                    if group_ not in data:
-                        data[group_] = []
-
-                    if str(id_) in data[group_]:
-                        return await interaction.followup.send(
-                            "Item já equipado.", ephemeral=True
-                        )
-                    lengh_itens = data.get(group_)
-                    if len(lengh_itens) >= 5:
-                        return await interaction.followup.send(
-                            "Não é possívle equipar mais de 5 badges.", 
-                            ephemeral=True
-                        )
-                    data[group_].append(str(id_))
-                    data = json.dumps(data)
-
-                    await self.db.execute(
-                        """
-                            UPDATE iventory set badge = $1
-                            WHERE iventory_id = (
-                                SELECT iventory_id FROM users
-                                WHERE id=($2)
-                            )
-                        """, str(data), str(interaction.user.id)
-                    )
-                else:
-                    print(type_, flush=True)
-                    await self.db.execute(
-                        """
-                            UPDATE iventory SET %s=(\'%s\')
-                            WHERE iventory_id=(
-                                SELECT iventory_id FROM users 
-                                WHERE id = (\'%s\')
-                            )
-                        """ % (type_, id_, interaction.user.id)
-                    )
-            except Exception as e:
-                log.warning(e)
-            else:
-                await interaction.followup.send(
-                    "%s %s %s!" % (
-                        type_.title(),
-                        name,
-                       "equipada" if type_.endswith('a') else "equipado"
-                    ), ephemeral=True
+                    "Item já equipado.", ephemeral=True
                 )
-        except Exception as e:
-            await interaction.followup.send(e)
-            log.warning(e)
-    @equipar.error
-    async def equipar_error(self, interaction: Interaction, error):
-        if isinstance(error, commands.BadArgument):
-            await interaction.response.send_message(
-                "```Esse item não existe.```",
-                ephemeral=True
-            )
-        elif isinstance(error, commands.MissingRequiredArgument):
-            await interaction.response.send_message(
-                "```Você não tem esse item.```",
-                ephemeral=True
+            lengh_itens = data.get(group_)
+            if len(lengh_itens) >= 5:
+                return await interaction.followup.send(
+                    "Não é possívle equipar mais de 5 badges.", 
+                    ephemeral=True
+                )
+            data[group_].append(str(id_))
+            data = json.dumps(data)
+
+            await self.db.execute(
+                """
+                    UPDATE iventory set badge = $1
+                    WHERE iventory_id = (
+                        SELECT iventory_id FROM users
+                        WHERE id=($2)
+                    )
+                """, str(data), str(interaction.user.id)
             )
         else:
-            pass
+            print(type_, flush=True)
+            await self.db.execute(
+                """
+                    UPDATE iventory SET %s=(\'%s\')
+                    WHERE iventory_id=(
+                        SELECT iventory_id FROM users 
+                        WHERE id = (\'%s\')
+                    )
+                """ % (type_, id_, interaction.user.id)
+            )
+        await interaction.followup.send(
+            "%s %s %s!" % (
+                type_.title(),
+                name,
+               "equipada" if type_.endswith('a') else "equipado"
+            ), ephemeral=True
+        )
+
 
     #   Equipar
     @activity_cooldown
     @app_commands.command(name='desequipar')
     async def desequipar(self, interaction: Interaction, item_id: int):
         await interaction.response.defer(thinking=True)
+        result = await self.db.fetch(
+            """
+                SELECT 
+                    item_type_id, type_, name, group_ 
+                FROM itens 
+                WHERE id=($1)
+            """, str(item_id)
+        )
+        if result:
+            item_id, type_, name, group_ = result
+
+        inv = await get_iventory(self, interaction.user.id)
+
+        inv_ids = []
+        for row in inv:
+            if not row[1]: continue
+            for items in row[1]:
+                l = ast.literal_eval(str(items))
+                for key, value in l.items():
+                    inv_ids.append(str(key))
+
+        if str(item_id) not in inv_ids:
+            return await interaction.followup.send(
+                "Você não tem esse item.",
+                ephemeral=True
+            )
+        result = await self.db.fetchrow(
+            """
+                 SELECT badge::json FROM iventory
+                 WHERE iventory_id = (
+                    SELECT iventory_id FROM users
+                    WHERE id=(\'%s\')
+                )
+            """ % (interaction.user.id))
+        data = ast.literal_eval(result[0])
+
+        if str(item_id) not in data[group_]:
+            return await interaction.followup.send(
+                "Esse item não está equipado.",
+                ephemeral=True
+            )
+        data[group_].remove(str(item_id))
+        data = json.dumps(data)
+
         try:
-            result = await self.db.fetch(
-                """
-                    SELECT 
-                        item_type_id, type_, name, group_ 
-                    FROM itens 
-                    WHERE id=($1)
-                """, str(item_id)
-            )
-            if result:
-                item_id, type_, name, group_ = result
-
-            inv = await get_iventory(self, interaction.user.id)
-
-            inv_ids = []
-            for row in inv:
-                if not row[1]: continue
-                for items in row[1]:
-                    l = ast.literal_eval(str(items))
-                    for key, value in l.items():
-                        inv_ids.append(str(key))
-
-            if str(item_id) not in inv_ids:
-                return await interaction.followup.send(
-                    "Você não tem esse item.",
-                    ephemeral=True
-                )
-            result = await self.db.fetchrow(
-                """
-                     SELECT badge::json FROM iventory
-                     WHERE iventory_id = (
-                        SELECT iventory_id FROM users
-                        WHERE id=(\'%s\')
-                    )
-                """ % (interaction.user.id))
-            data = ast.literal_eval(result[0])
-
-            if str(item_id) not in data[group_]:
-                return await interaction.followup.send(
-                    "Esse item não está equipado.",
-                    ephemeral=True
-                )
-            data[group_].remove(str(item_id))
-            data = json.dumps(data)
-
-            try:
-                if type_ == "badge":
-                    await self.db.fetch(
-                        """
-                            UPDATE iventory SET badge = \'%s\'
-                            WHERE iventory_id = (
-                                SELECT iventory_id FROM users
-                                WHERE id = ('%s')
-                            )
-                        """ % ( data, interaction.user.id, )
-                    )
-                else:
-                    await self.db.fetch("""
-                        UPDATE iventory SET %s = \'%s\'
-                        WHERE iventory_id=(
+            if type_ == "badge":
+                await self.db.fetch(
+                    """
+                        UPDATE iventory SET badge = \'%s\'
+                        WHERE iventory_id = (
                             SELECT iventory_id FROM users
-                            WHERE id = (\'%s\')
-                        );
-                    """ % (type_, data, interaction.user.id,)
-                    )
-
-            except Exception as e:
-                log.warning(e)
-            else:
-                await interaction.followup.send(
-                    "%s %s %s!" %
-                    (type_.title(), name,
-                     "desequipada" if type_.endswith('a') else "desequipado"),
-                    ephemeral=True
+                            WHERE id = ('%s')
+                        )
+                    """ % ( data, interaction.user.id, )
                 )
+            else:
+                await self.db.fetch("""
+                    UPDATE iventory SET %s = \'%s\'
+                    WHERE iventory_id=(
+                        SELECT iventory_id FROM users
+                        WHERE id = (\'%s\')
+                    );
+                """ % (type_, data, interaction.user.id,)
+                )
+
         except Exception as e:
-            await interaction.followup.send(e)
             log.warning(e)
-            
-    @desequipar.error
-    async def desequipar_error(self, interaction: Interaction, error):
-        if isinstance(error, commands.BadArgument):
-            await interaction.response.send_message(
-                "```Esse item não existe.```",
-                ephemeral=True
-            )
-        elif isinstance(error, commands.MissingRequiredArgument):
-            await interaction.response.send_message(
-                "```Você não tem esse item.```",
-                ephemeral=True
-            )
         else:
-            pass
+            await interaction.followup.send(
+                "%s %s %s!" %
+                (type_.title(), name,
+                 "desequipada" if type_.endswith('a') else "desequipado"),
+                ephemeral=True
+            )
 
     #   LOJAs
     @activity_cooldown
@@ -700,4 +656,4 @@ class Shop(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(Shop(bot))
+    await bot.add_cog(Shop(bot), guilds=[discord.Object(id=943170102759686174)])

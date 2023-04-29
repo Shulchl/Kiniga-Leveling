@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-
 class Config:
     def __init__(self, cfg: dict) -> None:
         # COISAS DA DATABASE 
@@ -8,6 +5,7 @@ class Config:
         self.postgresql_user = cfg["postgresql_user"]
         self.postgresql_password = cfg["postgresql_password"]
         self.postgresql_host = cfg["postgresql_host"]
+        self.report_to = cfg["report_to"]
         
         # COISAS DO EMAIL DO BOT
         self.bot_mail = cfg["bot_mail"]

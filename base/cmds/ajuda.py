@@ -28,6 +28,11 @@ class Ajuda(commands.Cog):
 
     def cog_load(self):
         sys.stdout.write(f'Cog carregada: {self.__class__.__name__}\n')
+        sys.stdout.flush()
+
+    def cog_unload(self):
+        sys.stdout.write(f'Cog descarregada: {self.__class__.__name__}\n')
+        sys.stdout.flush()
 
     @app_commands.command(name='ajuda', description='Mostra esta mensagem.')
     @app_commands.guilds(discord.Object(id=943170102759686174))
@@ -122,4 +127,4 @@ class Ajuda(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(Ajuda(bot))
+    await bot.add_cog(Ajuda(bot), guilds=[discord.Object(id=943170102759686174)])
