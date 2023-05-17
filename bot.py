@@ -4,9 +4,10 @@ import aiohttp
 import discord
 import asyncio
 
+from discord.ext import commands
+
 from base import log, cfg
 
-from discord.ext import commands
 
 #import matplotlib
 #print(matplotlib.get_configdir(), flush=True)
@@ -14,15 +15,14 @@ from discord.ext import commands
 TEST_GUILD = discord.Object(id=943170102759686174)
 
 class SpinovelBot(commands.Bot):
-    def __init__(self) -> None:
-        intents = discord.Intents.all()
-        atividade = discord.Activity(type=discord.ActivityType.watching,
-                                     name="Spinovel")
+    def __init__(self, **kwargs) -> None:
+        
         super().__init__(
-            intents=intents,
-            command_prefix=commands.when_mentioned_or(cfg.prefix),
-            description='Spinovel Brasil',
-            activity=atividade
+            intents=kwargs.pop("intents"),
+            command_prefix=commands.when_mentioned_or(kwargs.pop("prefix")),
+            description=kwargs.pop("description"),
+            activity=kwargs.pop("activity"),
+            case_insensitive = True,
         )
 
         log.info('Excluindo arquivos temporários...\n')
@@ -62,7 +62,14 @@ class SpinovelBot(commands.Bot):
 
 
 async def main() -> None:
-    bot = SpinovelBot()
+    bot = SpinovelBot(
+        prefix = cfg.prefix, 
+        description = cfg.description, 
+        activity = discord.Activity(
+            type=discord.ActivityType.watching, name="Spinovel"
+        ),
+        intents = discord.Intents.all()
+    )
     async with aiohttp.ClientSession() as session, bot:
         bot.session = session
         await bot.start(cfg.bot_token)

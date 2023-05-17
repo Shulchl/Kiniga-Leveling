@@ -22,12 +22,11 @@ class UUIDEncoder(json.JSONEncoder):
             return obj.hex
         return json.JSONEncoder.default(self, obj)
 
-
-try:
+class fontPath():
     _path = os.path.abspath('_temp')
 
-    isExist = os.path.exists(_path)
-    if not isExist:
+    exist = os.path.exists(_path)
+    if not exist:
         os.mkdir(_path)
     pathMonserrat = os.path.abspath('src/fonts/Montserrat/')
     pathOpen = os.path.abspath('src/fonts/Opensans/')
@@ -37,10 +36,6 @@ try:
 
     if not os.path.exists(pathOpen):
         print("Não consegui encontrar o caminho para %s" % (pathOpen))
-
-except Exception as e:
-    raise e
-
 
 class Database:
     def __init__(self, loop, user: str = None, password: str = None) -> None:
@@ -123,17 +118,54 @@ class Database:
                 result = await conn.execute(sql, *args)
         return result
 
+class Gradient():
+    def __init__(**kwargs):
+        super().__init__(kwargs)
 
-# GRANDIENT
-BLACK, DARKGRAY, GRAY = ((0, 0, 0), (63, 63, 63), (127, 127, 127))
-LIGHTGRAY, WHITE = ((191, 191, 191), (255, 255, 255))
-BLUE, GREEN, RED = ((0, 0, 255), (0, 255, 0), (255, 0, 0))
+    # GRANDIENT
+    BLACK, DARKGRAY, GRAY = ((0, 0, 0), (63, 63, 63), (127, 127, 127))
+    LIGHTGRAY, WHITE = ((191, 191, 191), (255, 255, 255))
+    BLUE, GREEN, RED = ((0, 0, 255), (0, 255, 0), (255, 0, 0))
 
+    def gradient_color(minval, maxval, val, color_palette):
+        """ Computes intermediate RGB color of a value in the range of minval
+            to maxval (inclusive) based on a color_palette representing the range.
+        """
+        max_index = len(color_palette)-1
+        delta = maxval - minval
+        if delta == 0:
+            delta = 1
+        v = float(val-minval) / delta * max_index
+        i1, i2 = int(v), min(int(v)+1, max_index)
+        (r1, g1, b1), (r2, g2, b2) = color_palette[i1], color_palette[i2]
+        f = v - i1
+        return int(r1 + f*(r2-r1)), int(g1 + f*(g2-g1)), int(b1 + f*(b2-b1))
+
+
+    def horz_gradient(draw, rect, color_func, color_palette):
+        minval, maxval = 1, len(color_palette)
+        delta = maxval - minval
+        width = float(rect.width)  # Cache.
+        for x in range(rect.min.x, rect.max.x+1):
+            f = (x - rect.min.x) / width
+            val = minval + f * delta
+            color = color_func(minval, maxval, val, color_palette)
+            draw.line([(x, rect.min.y), (x, rect.max.y)], fill=color)
+
+
+    def vert_gradient(draw, rect, color_func, color_palette):
+        minval, maxval = 1, len(color_palette)
+        delta = maxval - minval
+        height = float(rect.height)  # Cache.
+        for y in range(rect.min.y, rect.max.y+1):
+            f = (y - rect.min.y) / height
+            val = minval + f * delta
+            color = color_func(minval, maxval, val, color_palette)
+            draw.line([(rect.min.x, y), (rect.max.x, y)], fill=color)
 
 class Point(object):
     def __init__(self, x, y):
         self.x, self.y = x, y
-
 
 class Rect(object):
     def __init__(self, x1, y1, x2, y2):
@@ -145,129 +177,90 @@ class Rect(object):
     width = property(lambda self: self.max.x - self.min.x)
     height = property(lambda self: self.max.y - self.min.y)
 
-
-def gradient_color(minval, maxval, val, color_palette):
-    """ Computes intermediate RGB color of a value in the range of minval
-        to maxval (inclusive) based on a color_palette representing the range.
-    """
-    max_index = len(color_palette)-1
-    delta = maxval - minval
-    if delta == 0:
-        delta = 1
-    v = float(val-minval) / delta * max_index
-    i1, i2 = int(v), min(int(v)+1, max_index)
-    (r1, g1, b1), (r2, g2, b2) = color_palette[i1], color_palette[i2]
-    f = v - i1
-    return int(r1 + f*(r2-r1)), int(g1 + f*(g2-g1)), int(b1 + f*(b2-b1))
-
-
-def horz_gradient(draw, rect, color_func, color_palette):
-    minval, maxval = 1, len(color_palette)
-    delta = maxval - minval
-    width = float(rect.width)  # Cache.
-    for x in range(rect.min.x, rect.max.x+1):
-        f = (x - rect.min.x) / width
-        val = minval + f * delta
-        color = color_func(minval, maxval, val, color_palette)
-        draw.line([(x, rect.min.y), (x, rect.max.y)], fill=color)
-
-
-def vert_gradient(draw, rect, color_func, color_palette):
-    minval, maxval = 1, len(color_palette)
-    delta = maxval - minval
-    height = float(rect.height)  # Cache.
-    for y in range(rect.min.y, rect.max.y+1):
-        f = (y - rect.min.y) / height
-        val = minval + f * delta
-        color = color_func(minval, maxval, val, color_palette)
-        draw.line([(rect.min.x, y), (rect.max.x, y)], fill=color)
-#
-
-
 class Rank:
 
     def __init__(self) -> None:
         # PERFIL
         self.class_font_semibold = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratSemiBold.ttf'), 36)
+            os.path.join(fontPath.pathMonserrat, 'MontserratSemiBold.ttf'), 36)
 
         self.class_font_bold_name = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 72)
+            os.path.join(fontPath.pathMonserrat, 'MontserratBold.ttf'), 72)
 
         self.class_font_bold_id = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratMedium.ttf'), 42)
+            os.path.join(fontPath.pathMonserrat, 'MontserratMedium.ttf'), 42)
 
         self.class_font_bold_info_sans = ImageFont.truetype(
-            os.path.join(pathOpen, 'OpenSansRegular.ttf'), 36)
+            os.path.join(fontPath.pathOpen, 'OpenSansRegular.ttf'), 36)
 
         self.class_font_bold_xp = ImageFont.truetype(
-            os.path.join(pathOpen, 'OpenSansBold.ttf'), 48)
+            os.path.join(fontPath.pathOpen, 'OpenSansBold.ttf'), 48)
 
         self.class_font_bold_info = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 36)
+            os.path.join(fontPath.pathMonserrat, 'MontserratBold.ttf'), 36)
 
         self.class_font_montserrat = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratRegular.ttf'), 36)
+            os.path.join(fontPath.pathMonserrat, 'MontserratRegular.ttf'), 36)
 
         self.class_font_montserrat_bday = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratMedium.ttf'), 36)
+            os.path.join(fontPath.pathMonserrat, 'MontserratMedium.ttf'), 36)
 
         self.class_font_bold_ori_bday = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 42)
+            os.path.join(fontPath.pathMonserrat, 'MontserratBold.ttf'), 42)
 
         self.class_font_role = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 30)
+            os.path.join(fontPath.pathMonserrat, 'MontserratBold.ttf'), 30)
 
         self.RadiateSansBoldCondensed = ImageFont.truetype(
-            os.path.join(pathOpen, 'OpenSansCondensedBold.ttf'), 65)
+            os.path.join(fontPath.pathOpen, 'OpenSansCondensedBold.ttf'), 65)
 
         # NIVEL
         # "LOJA"
         self.montserrat_extrabold_loja = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratExtraBold.ttf'), 50)
+            os.path.join(fontPath.pathMonserrat, 'MontserratExtraBold.ttf'), 50)
 
         # COINS TITLE TEXT
         self.montserrat_medium_coins = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratMedium.ttf'), 23)
+            os.path.join(fontPath.pathMonserrat, 'MontserratMedium.ttf'), 23)
 
         # COINS VALUE TEXT
         self.montserrat_bold_coins = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 28)
+            os.path.join(fontPath.pathMonserrat, 'MontserratBold.ttf'), 28)
 
         # Nome do item
         self.montserrat_bold_name = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 20)
+            os.path.join(fontPath.pathMonserrat, 'MontserratBold.ttf'), 20)
 
         # Tipo do item
         self.montserrat_bold_type = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 22)
+            os.path.join(fontPath.pathMonserrat, 'MontserratBold.ttf'), 22)
 
         # Valor
         self.montserrat_blackitalic_value = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBlackItalic.ttf'), 40)
+            os.path.join(fontPath.pathMonserrat, 'MontserratBlackItalic.ttf'), 40)
 
         # Categoria do item
         self.montserrat_semibold_category = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratSemiBold.ttf'), 20)
+            os.path.join(fontPath.pathMonserrat, 'MontserratSemiBold.ttf'), 20)
 
         # "Página"
         self.montserrat_semibold = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratSemiBold.ttf'), 30)
+            os.path.join(fontPath.pathMonserrat, 'MontserratSemiBold.ttf'), 30)
 
         # Número da página
         self.montserrat_extrabold_pageNumb = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratExtraBold.ttf'), 30)
+            os.path.join(fontPath.pathMonserrat, 'MontserratExtraBold.ttf'), 30)
 
         # /equipar #ID [diff]
         self.montserrat_extrabolditalic_equip = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratExtraBoldItalic.ttf'), 25)
+            os.path.join(fontPath.pathMonserrat, 'MontserratExtraBoldItalic.ttf'), 25)
        # antigas
 
         self.class_font_montserrat_regular_nivel = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratRegular.ttf'), 30)
+            os.path.join(fontPath.pathMonserrat, 'MontserratRegular.ttf'), 30)
 
         self.XPRadiateSansBoldCondensed = ImageFont.truetype(
-            os.path.join(pathOpen, 'RadiateSansBoldCondensed.ttf'), 85)
+            os.path.join(fontPath.pathOpen, 'RadiateSansBoldCondensed.ttf'), 85)
 
     def add_corners(self, im, rad):
         size = im.size
@@ -696,9 +689,9 @@ class Rank:
         color_palette = [(186, 162, 125), (189, 142, 71)]
         region = Rect(0, 0, mask.size[0], mask.size[1])
         width, height = region.max.x+1, region.max.y+1
-        image = Image.new("RGB", (width, height), WHITE)
+        image = Image.new("RGB", (width, height), Gradient.WHITE)
         draw = ImageDraw.Draw(image)
-        horz_gradient(draw, region, gradient_color, color_palette)
+        Gradient.horz_gradient(draw, region, Gradient.gradient_color, color_palette)
         image = image.resize(mask.size, Image.NEAREST).convert("RGBA")
         bg = Image.composite(image, bg, mask)
         #bg.paste(image, (0, 0))
@@ -776,9 +769,9 @@ class Rank:
         color_palette = [(186, 162, 125), (189, 142, 71)]
         region = Rect(0, 0, mask.size[0], mask.size[1])
         width, height = region.max.x+1, region.max.y+1
-        image = Image.new("RGB", (width, height), WHITE)
+        image = Image.new("RGB", (width, height), Gradient.WHITE)
         draw = ImageDraw.Draw(image)
-        horz_gradient(draw, region, gradient_color, color_palette)
+        Gradient.horz_gradient(draw, region, Gradient.gradient_color, color_palette)
         image = image.resize(
             mask.size, Image.Resampling.NEAREST).convert("RGBA")
         image = Image.composite(image, bg, mask)
@@ -1307,57 +1300,56 @@ class Rank:
     def neededxp(level: str) -> int:
         return ((level * level) * 300) + 100
 
-
 class shopNew:
     def __init__(self) -> None:
         # "LOJA"
         self.montserrat_extrabold_loja = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratExtraBold.ttf'), 50
+            os.path.join(fontPath.pathMonserrat, 'MontserratExtraBold.ttf'), 50
         )
 
         # COINS TITLE TEXT
         self.montserrat_medium_coins = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratMedium.ttf'), 23
+            os.path.join(fontPath.pathMonserrat, 'MontserratMedium.ttf'), 23
         )
 
         # COINS VALUE TEXT
         self.montserrat_bold_coins = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 28
+            os.path.join(fontPath.pathMonserrat, 'MontserratBold.ttf'), 28
         )
 
         # /comprar #ID
         self.montserrat_semibolditalic_buy = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratSemiBoldItalic.ttf'), 25
+            os.path.join(fontPath.pathMonserrat, 'MontserratSemiBoldItalic.ttf'), 25
         )
 
         # Nome do item
         self.montserrat_bold_name = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 25
+            os.path.join(fontPath.pathMonserrat, 'MontserratBold.ttf'), 25
         )
 
         # Tipo do item
         self.montserrat_bold_type = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 22
+            os.path.join(fontPath.pathMonserrat, 'MontserratBold.ttf'), 22
         )
 
         # Valor
         self.montserrat_blackitalic_value = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBlackItalic.ttf'), 40
+            os.path.join(fontPath.pathMonserrat, 'MontserratBlackItalic.ttf'), 40
         )
 
         # Categoria do item
         self.montserrat_semibold_category = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratSemiBold.ttf'), 20
+            os.path.join(fontPath.pathMonserrat, 'MontserratSemiBold.ttf'), 20
         )
 
         # "Página"
         self.montserrat_semibold = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratSemiBold.ttf'), 30
+            os.path.join(fontPath.pathMonserrat, 'MontserratSemiBold.ttf'), 30
         )
 
         # Número da página
         self.montserrat_extrabold_pageNumb = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratExtraBold.ttf'), 30
+            os.path.join(fontPath.pathMonserrat, 'MontserratExtraBold.ttf'), 30
         )
 
     def add_corners(self, im, rad):
@@ -1589,7 +1581,7 @@ class shopNew:
                 try:
                     u = uuid.uuid4().hex
 
-                    plain.save(f'{os.path.join(_path, u)}.png', 'PNG')
+                    plain.save(f'{os.path.join(fontPath._path, u)}.png', 'PNG')
                     # buffer.seek(0)
 
                 except Exception as i:
@@ -1601,17 +1593,16 @@ class shopNew:
             print(e)
             raise e
 
-
 class Top:
     def __init__(self) -> None:
         self.opensans_bold_name = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 40)
+            os.path.join(fontPath.pathMonserrat, 'MontserratBold.ttf'), 40)
         self.opensans_regular_lilname = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratRegular.ttf'), 27)
+            os.path.join(fontPath.pathMonserrat, 'MontserratRegular.ttf'), 27)
         self.opensans_bold_coin = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratMedium.ttf'), 40)
+            os.path.join(fontPath.pathMonserrat, 'MontserratMedium.ttf'), 40)
         self.opensans_bold_count = ImageFont.truetype(
-            os.path.join(pathMonserrat, 'MontserratBold.ttf'), 18)
+            os.path.join(fontPath.pathMonserrat, 'MontserratBold.ttf'), 18)
 
     async def topdraw(self, user_id, ranking, user_position, profile_bytes: BytesIO) -> BytesIO:
 
@@ -1747,13 +1738,11 @@ class Top:
         buffer.seek(0)
         return buffer
 
-
 class Utilities:
     def __init__(self):
         self.database = Database
         self.rankcard = Rank()
         self.shopnew = shopNew()
         self.topcard = Top()
-
 
 utilities = Utilities()

@@ -5,6 +5,7 @@ class Config:
         self.postgresql_user = cfg["postgresql_user"]
         self.postgresql_password = cfg["postgresql_password"]
         self.postgresql_host = cfg["postgresql_host"]
+        
         self.report_to = cfg["report_to"]
         
         # COISAS DO EMAIL DO BOT
@@ -48,3 +49,10 @@ class Config:
         self.refuse_c = cfg["refuse_channel"] # CANAL EM QUE SERÁ ENVIADO OS PROJETOS RECUSADOS
         self.trello_l_c = cfg["trello_log_channel"] # CANAL EM QUE SERÁ ENVIADO O LOG DO TRELLO 
     
+class DB:
+    def __init__(self):
+        # COISAS DA DATABASE 
+        self.dbName = cfg["db_Name"]
+        self.postgresql_user = cfg["postgresql_user"]
+        self.postgresql_password = cfg["postgresql_password"]
+        self.postgresql_host = cfg["postgresql_host"]

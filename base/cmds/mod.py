@@ -1,5 +1,4 @@
 import asyncio
-import datetime
 import json
 import random
 import os
@@ -7,6 +6,7 @@ import discord
 import sys
 import ast
 
+from datetime import datetime
 from asyncio import sleep as asyncsleep
 from typing import Literal, Optional
 from io import BytesIO
@@ -22,7 +22,9 @@ from base.functions import (
     starterItens,
     timeRemaning,
     user_inventory,
-    get_userAvatar_func
+    get_userAvatar_func,
+    cogs_manager,
+    bot_has_permissions
 )
 from base.image import ImageCaptcha
 from base.struct import Config
@@ -73,71 +75,89 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
     async def config(self, ctx):
         pass
 
-    @config.command()
-    @commands.cooldown(1, 30, commands.BucketType.member)
-    async def load(self, ctx, extension):
-        await self.bot.load_extension(f'base.cmds.{extension}')
-        await ctx.message.delete()
-        await ctx.send("Carreguei os comandos", delete_after=5)
+    @bot_has_permissions(send_messages=True)
+    @config.command(name="load")
+    @commands.is_owner()
+    async def load_cog(self, ctx: commands.Context, cog: str):
+        """Load a cog."""
+        await cogs_manager(self.bot, "load", [f"cogs.{cog}"])
+        await ctx.send(f":point_right: Cog {cog} loaded!")
 
-    @load.error
-    async def load_error(self, ctx, error):
-        if isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(
-                "%s você poderá usar este comando de novo."
-                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=int(error.retry_after)), "R")),
-                delete_after=error.retry_after
-            )
-        else:
-            await ctx.send(error, delete_after=5)
+    @bot_has_permissions(send_messages=True)
+    @config.command(name="unload")
+    @commands.is_owner()
+    async def unload_cog(self, ctx: commands.Context, cog: str):
+        """Unload a cog."""
+        await cogs_manager(self.bot, "unload", [f"cogs.{cog}"])
+        await ctx.send(f":point_left: Cog {cog} unloaded!")
 
-    @config.command()
-    @commands.cooldown(1, 30, commands.BucketType.member)
-    async def reload(self, ctx, extension):
-        await self.bot.unload_extension(f'base.cmds.{extension}')
-        await self.bot.load_extension(f'base.cmds.{extension}')
-        await ctx.message.delete()
-        await ctx.send("Recarreguei os comandos", delete_after=5)
+    @bot_has_permissions(send_messages=True)
+    @config.command(name="reloadall", aliases=["rell"])
+    @commands.is_owner()
+    async def reload_all_cogs(self, ctx: commands.Context):
+        """Reload all cogs."""
+        cogs = [cog for cog in self.bot.extensions]
+        await cogs_manager(self.bot, "reload", cogs)    
 
-    @reload.error
-    async def reload_error(self, ctx, error):
-        if isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(
-                "%s você poderá usar este comando de novo."
-                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")),
-                delete_after=int(error.retry_after-1)
-            )
-        else:
-            await ctx.send(error, delete_after=5)
+        await ctx.send(f":muscle: All cogs reloaded: `{len(cogs)}`!")
 
-    @config.command()
-    @commands.cooldown(1, 30, commands.BucketType.member)
-    async def unload(self, ctx, extension):
-        await self.bot.unload_extension(f'base.cmds.{extension}')
-        await ctx.message.delete()
-        await ctx.send("Descarreguei os comandos", delete_after=5)
+    @bot_has_permissions(send_messages=True)
+    @config.command(name="reload", aliases=["rel"], require_var_positional=True)
+    @commands.is_owner()
+    async def reload_specified_cogs(self, ctx: commands.Context, *cogs: str):
+        """Reload specific cogs."""
+        reload_cogs = [f"cogs.{cog}" for cog in cogs]
+        await cogs_manager(self.bot, "reload", reload_cogs)
 
-    @unload.error
-    async def unload_error(self, ctx, error):
-        if isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(
-                "%s você poderá usar este comando de novo."
-                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")),
-                delete_after=int(error.retry_after-1)
-            )
-        else:
-            await ctx.send(error, delete_after=5)
+        await ctx.send(f":thumbsup: `{'` `'.join(cogs)}` reloaded!")
 
-    @config.command()
-    @commands.cooldown(1, 300, commands.BucketType.member)
-    async def shutdown(self, ctx):
-        await ctx.message.delete()
-        print((("-" * 20) + "shutdown" + ("-" * 20)))
-        try:
-            await self.bot.close()
-        except Exception as e:
-            await ctx.send("Deu merda aqui em. Melhor ver isso logo...", delete_after=5)
-            raise (e)
+    @bot_has_permissions(send_messages=True)
+    @config.command(name="reloadlatest", aliases=["rl"])
+    @commands.is_owner()
+    async def reload_latest_cogs(self, ctx: commands.Context, n_cogs: int = 1):
+        """Reload the latest edited n cogs."""
+        def sort_cogs(cogs_last_edit: list[list]) -> list[list]:
+            return sorted(cogs_last_edit, reverse = True, key = lambda x: x[1])
+        
+        cogs = []
+        for file in os.listdir(cogs_directory):
+            actual = os.path.splitext(file)
+            if actual[1] == ".py":
+                file_path = os.path.join(cogs_directory, file)
+                latest_edit = os.path.getmtime(file_path)
+                cogs.append([actual[0], latest_edit])
+
+        sorted_cogs = sort_cogs(cogs)
+        reload_cogs = [f"cogs.{cog[0]}" for cog in sorted_cogs[:n_cogs]]
+        await cogs_manager(self.bot, "reload", reload_cogs)
+
+        await ctx.send(f":point_down: `{'` `'.join(reload_cogs)}` reloaded!")
+    
+    @bot_has_permissions(send_messages=True, attach_files=True)
+    @config.command(name="botlogs", aliases=["bl"])
+    @commands.is_owner()
+    async def show_bot_logs(self, ctx: commands.Context):
+        """Upload the bot logs"""
+        logs_file = os.path.join('.', "log.log")
+
+        await ctx.send(file=discord.File(fp=logs_file, filename="bot.log"))
+
+    @bot_has_permissions(send_messages=True)
+    @config.command(name="uptime")
+    @commands.is_owner()
+    async def show_uptime(self, ctx: commands.Context):
+        """Show the bot uptime."""
+        uptime = datetime.now() - self.bot.uptime
+        await ctx.send(f":clock1: {format_dt(self.bot.uptime, 'R')} ||`{uptime}`||")
+
+    @bot_has_permissions(send_messages=True)
+    @config.command(name="shutdown")
+    @commands.is_owner()
+    async def shutdown_structure(self, ctx: commands.Context):
+        """Shutdown the bot."""
+        await ctx.send(f":wave: `{self.bot.user.name}` is shutting down...") # type: ignore
+
+        await self.bot.close()
 
 
     @config.command(name="tsql")
@@ -151,7 +171,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         if isinstance(error, commands.CommandOnCooldown):
             await ctx.send(
                 "%s você poderá usar este comando de novo."
-                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")),
+                % (format_dt(datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")),
                 delete_after=int(error.retry_after-1)
             )
         else:
@@ -168,7 +188,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         if isinstance(error, commands.CommandOnCooldown):
             await ctx.send(
                 "%s você poderá usar este comando de novo."
-                % (format_dt(datetime.datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")),
+                % (format_dt(datetime.now() + datetime.timedelta(seconds=error.retry_after), "R")),
                 delete_after=int(error.retry_after-1)
             )
         else:
@@ -704,7 +724,7 @@ class Mod(commands.Cog, name='Moderação', command_attrs=dict(hidden=True)):
         # // {winner.mention} ganhou {prize_}
         await channel.send(
             "Parabéns, %s!.\n`Você tem %s minutos para falar no canal, do contrário o sorteio será refeito.`" %
-            (winner.mention, format_dt(datetime.datetime.now() +
+            (winner.mention, format_dt(datetime.now() +
                                        datetime.timedelta(seconds=60), 'R')),
             delete_after=59)
 
