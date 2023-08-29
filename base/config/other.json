@@ -1,0 +1,94 @@
+{
+	"min_message_xp": 10,
+    "max_message_xp": 25,
+    "coinsmin": 5,
+    "coinsmax": 15,
+    "lucky": 5,
+    "prefix": "s.",
+    "bdayloop": false,
+    "guild": "Testando bot",
+    "chat_cmds": 12334556789,
+    "coin_max": 20,
+    "setup": false,
+    "ranks": [
+        "Novato",
+        "Soldado Nadir",
+        "Sargento Aurora",
+        "Tenente Zênite",
+        "Capitão Solar",
+        "Major Solar",
+        "Coronel Umbra",
+        "General Blazar",
+        "Marechal Quasar"
+    ],
+    "colors": [
+        [
+            189,
+            142,
+            71
+        ],
+        [
+            221,
+            180,
+            100
+        ],
+        [
+            101,
+            187,
+            254
+        ],
+        [
+            193,
+            134,
+            250
+        ],
+        [
+            253,
+            153,
+            123
+        ],
+        [
+            255,
+            174,
+            80
+        ],
+        [
+            153,
+            197,
+            155
+        ],
+        [
+            240,
+            114,
+            90
+        ],
+        [
+            197,
+            141,
+            248
+        ]
+    ],
+    "trash": [
+        "uma meia",
+        "um sapato",
+        "um saco plástico",
+        "uma rede",
+        "um canudo",
+        "um óculos quebrado"
+    ],
+    "eqp_role": 12334556789,
+    "mark_role": 12334556789,
+    "aut_role": 12334556789,
+    "creat_role": 12334556789,
+    "chat_loop": 12334556789,
+    "chat_release": 12334556789,
+    "chat_creators": 12334556789,
+    "acept_channel": 12334556789,
+    "refuse_channel": 12334556789,
+    "publish_channel": 12334556789,
+    "refuse_channel": 12334556789,
+    "trello_log_channel": 12334556789,
+    "trelloKey":    12334556789,
+    "trelloToken":  12334556789,
+    "trelloList":   "12334556789"
+}

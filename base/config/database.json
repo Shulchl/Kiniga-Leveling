@@ -1,0 +1,10 @@
+{
+    "use_database": true,
+    "server": {
+        "host": "localhost",
+        "port": 3306,
+        "user": "jonathan",
+        "password": "13062000",
+        "database": "spinovelbot"
+    }
+}
