@@ -1,11 +1,24 @@
-matplotlib>=3.7.1
+# -- Usage -- 
+# $ pip install -r requirements.txt
+
+# -- Show each installed package(s) --
+# $ pip freeze
+
+# -- Uninstall all package(s) --
+# $ pip freeze | xargs pip uninstall -y
+
+aiomysql == 0.2.0
+requests == 2.31.0
+
+matplotlib == 3.7.2
+Pillow == 10.0.0
+
+PyNaCl
+
+discord.py[speed] == 2.3.2
+#git+https://github.com/Rapptz/discord.py@master#egg=discord.py[speed] # latest version
+
+bs4	
 aiohttp
-asyncpg
-discord.py>=2.2.0
-requests
-beautifulsoup4
-pillow>=9.3.0
 lxml
-numpy
-line_profiler
 typing_extensions

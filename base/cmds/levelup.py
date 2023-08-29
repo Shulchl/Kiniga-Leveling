@@ -1,45 +1,29 @@
-import json
-import discord
-import sys
-
 from random import randint
+
+import discord
+from discord import Message
 from discord.ext import commands
 
-from base.utilities import utilities
+from base.Spinovelbot import SpinovelBot
+from base.classes.functions.drawFunctions.level import neededxp
 from base.functions import get_profile_info
 
-from discord.ext.commands.errors import MissingPermissions, RoleNotFound
-
-from base import cfg, log
 
 # CLASS LEVELING
 
 
 class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
-    def __init__(self, bot: commands.Bot) -> None:
+    def __init__(self, bot: SpinovelBot) -> None:
         self.bot = bot
-        self.db = utilities.database(self.bot.loop)
+        self.database = self.bot.database
         self.cd_mapping = commands.CooldownMapping.from_cooldown(
             1, 0.1, commands.BucketType.member)
 
-        self.cfg = cfg
-
-        #self.brake = []
-    def cog_load(self):
-        sys.stdout.write(f'Cog carregada: {self.__class__.__name__}\n')
-        sys.stdout.flush()
-
-    def cog_unload(self):
-        sys.stdout.write(f'Cog descarregada: {self.__class__.__name__}\n')
-        sys.stdout.flush()
+        self.config = self.bot.config["other"]
 
     async def has_db(message):
-        a = await self.db.fetch(
-            """
-                SELECT name FROM users WHERE id=%s LIMIT 1
-            """ % (message.author.id)
-        )
-        log.error("\n\nuser check\n\n", flush=True)
+        a = await SpinovelBot.database.select("users", "name", f"id={message.author.id}", None, 1)
+        SpinovelBot.log(message="\n\nuser check\n\n", name="cmds.levelup")
         return a != None
 
     @commands.before_invoke(has_db)
@@ -55,55 +39,48 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
         if not bucket.update_rate_limit():
             member_id = message.author.id
 
-            user_ = await get_profile_info(self, member_id, message.author.name)
-
-            user_id, user_rank, user_xp, user_xptotal, info, spark, ori, user_iventory_id, birth, rank_id, user_name, email = user_
+            user_ = await get_profile_info(self.bot, member_id, message.author.name)
+            self.bot.log(message=f"{user_}", name="cmds.levelup")
+            user_id, user_name, email, info, user_rank, user_xp, xptotal, spark, ori, birth, created_at, updated_at = user_
 
             if user_rank >= 80:
                 return
-            
+
             lvUpChannel = self.bot.get_channel(1009074998889164880)
-            spark = randint(self.cfg.coinsmin, self.cfg.coinsmax)
-            # result = await self.db.fetch(f"SELECT rank, xp, xptotal FROM users WHERE id=('{member_id}')")
-            expectedXP = randint(self.cfg.min_message_xp,
-                                 self.cfg.max_message_xp)
+
+            spark = randint(self.config["coinsmin"], self.config["coinsmax"])
+            expectedXP = randint(self.config["min_message_xp"],
+                                 self.config["max_message_xp"])
             current_xp = user_xp + expectedXP
 
-            if current_xp >= utilities.rankcard.neededxp(user_rank):
+            if current_xp >= neededxp(user_rank):
                 try:
-                    rank = await self.db.fetchval("""
+                    await self.database.query(f"""
                         UPDATE users 
-                        SET rank = %s, 
-                            xptotal = ( xptotal + %s ), 
-                            spark = ( spark + %s ) 
-                        WHERE id = ( \'%s\' )
-                        RETURNING rank
-                    """ % (user_rank + 1, expectedXP, spark, member_id, ))
+                        SET rank = {user_rank + 1}, 
+                            xptotal = ( xptotal + {expectedXP} ), 
+                            spark = ( spark + {spark} ) 
+                        WHERE id = ( {member_id} )
+                    """)
+
+                    rank = await self.database.select("users", "rank", f"id={message.author.id}")
 
                     await lvUpChannel.send(
                         "> %s__, você subiu para o nível %s!__ \n> `+%s sparks +%s pontos de experiência.`"
-                        % (message.author.mention, rank, spark, expectedXP, ), delete_after=10)
+                        % (message.author.mention, rank[0], spark, expectedXP,), delete_after=10)
 
-                    rankNames = await self.db.fetch("""
-                        SELECT name 
-                        FROM ranks 
-                        WHERE lvmin <= %s 
-                        ORDER BY lvmin DESC
-                    """ % (rank, ))
-
+                    rankNames = await self.database.select("ranks", "name", f"lvmin <= {rank[0]}", "lvmin DESC")
+                    print(rankNames)
                     nextRank = discord.utils.find(
-                        lambda r: r.name == rankNames[0][0], 
-                            message.guild.roles
-                    ) or rankNames[0][0]
-                    # print([x[0] for x in rankNames])
+                        lambda r: r.name == rankNames[0],
+                        message.guild.roles
+                    ) or rankNames[0]
                     prevRank = [
-                        x[0] for x in rankNames if x[0] in self.cfg.ranks and x[0] != (
-                        rankNames[0][0] if rankNames[0][0] != "Novato" else "qualquercoisa")
+                        x[0] for x in rankNames if x[0] in self.config["ranks"] and x[0] != (
+                            rankNames[0] if rankNames[0] != "Novato" else "qualquercoisa")
                     ]
-                    # print(prevRank)
                     try:
                         if nextRank in message.author.roles:
-                            # await self.lvUpChannel.send("> `%s, você tem um cargo que não deveria ter... (≖_≖ ) `" % (message.author.mention, ), delete_after=10)
                             return
 
                         await message.author.add_roles(nextRank)
@@ -111,7 +88,6 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
                         if len(prevRank) == 0:
                             return
 
-                        # await self.lvUpChannel.send("+"*10+prevRole +"+"*10)
                         prevRank = [
                             discord.utils.find(
                                 lambda r: r.name == i, message.guild.roles
@@ -124,37 +100,29 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
 
                     except Exception as i:
                         if isinstance(i, commands.MissingPermissions):
-                            return await lvUpChannel.send(
+                            await lvUpChannel.send(
                                 "> %s `Eu não tenho permissão para adicionar/remover cargos, reporte à um ADM.`"
-                                % (message.author.mention, )
+                                % (message.author.mention,)
                             )
+
                         elif isinstance(i, commands.RoleNotFound):
-                            return await lvUpChannel.send(
+                            await lvUpChannel.send(
                                 "> %s `Não consegui encontrar o cargo, favor, reporte à um ADM.`"
-                                % (message.author.mention, )
+                                % (message.author.mention,)
                             )
-                        else:
-                            raise i
-                    # else:
-                    #    print("Cargos adicionados/removidos com sucesso.")
-                        # rank2 = await self.db.fetch(f'SELECT lv, name, r, g, b FROM ranks WHERE lv <={
-                        # user_rank} ORDER BY lv DESC')
+                        raise i
                 except Exception as e:
                     raise e
             else:
-                await self.db.execute("""
+                await self.bot.database.query(f"""
                     UPDATE users 
-                    SET xp=(%s), 
-                        xptotal=(xptotal + %s), 
-                        spark=(spark + %s) 
-                    WHERE id=\'%s\'
-                """ % (current_xp, current_xp + expectedXP, spark, member_id, ))
-
-            # self.brake.append(message.author.id)
-            #await asyncsleep(randint(0, 5))  #
-            # self.brake.remove(message.author.id)
+                    SET xp=({current_xp}), 
+                        xptotal=(xptotal + {current_xp + expectedXP}), 
+                        spark=(spark + {spark}) 
+                    WHERE id={member_id}
+                """)
 
 
-async def setup(bot: commands.Bot) -> None:
+async def setup(bot: SpinovelBot) -> None:
     # , guilds=[ discord.Object(id=943170102759686174), discord.Object(id=1010183521907789977)]
     await bot.add_cog(Levelup(bot), guilds=[discord.Object(id=943170102759686174)])

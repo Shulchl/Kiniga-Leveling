@@ -6,47 +6,35 @@
     Funções para facilitar meu trabalho.
 """
 
-import discord
-import os
-import aiohttp
-import random
-import requests
-import asyncpg
-import json
-import sys
-import datetime
-import time
 import ast
-
+import datetime
+import json
+import random
+import sys
+import time
 from io import BytesIO
+from os import listdir
+from os.path import join, splitext
+from typing import Literal
+from typing import Optional
 from urllib.request import urlopen
-from typing import Optional, Literal, Dict, Union, List
+
+import aiohttp
+import discord
+import requests
 from bs4 import BeautifulSoup
-
-from base.struct import Config
-from base.utilities import utilities
-from asyncpg.pgproto.pgproto import UUID
-
-from discord.utils import format_dt
-from discord.ext import commands
 from discord import app_commands
+from discord.utils import format_dt
 
-
-from base import log, cfg
+from base.classes.utilities import root_directory
 
 __all__ = []
-
-
-def __init__(self, bot) -> None:
-    self.bot = bot
-    self.db = utilities.database(self.bot.loop)
-    self.log = log
-    self.cfg = cfg
 
 longest_cooldown = app_commands.checks.cooldown(
     2, 300.0, key=lambda i: (i.guild_id, i.user.id))
 activity_cooldown = app_commands.checks.cooldown(
     1, 5.0, key=lambda i: (i.guild_id, i.user.id))
+
 
 def print_progress_bar(index, total, label):
     n_bar = 20  # Progress bar width
@@ -58,7 +46,7 @@ def print_progress_bar(index, total, label):
 
 
 async def error_delete_after(interaction, error):
-    if  interaction.response.type == discord.InteractionResponseType.channel_message:
+    if interaction.response.type == discord.InteractionResponseType.channel_message:
         return await interaction.response.send_message(
             content="%s você poderá usar este comando de novo." % format_dt(
                 datetime.datetime.now() +
@@ -74,9 +62,10 @@ async def error_delete_after(interaction, error):
                 'R'),
             delete_after=int(error.retry_after) - 1)
 
+
 async def report_error(self, interaction, error):
-    log.exception(error)
-    admin = self.bot.get_user(int(self.cfg.report_to))
+    self.bot.log(message=error, name="functions.report_error")
+    admin = self.bot.get_user(int(self.bot.config["bot"]["report_to"]))
 
     embed = discord.Embed(title="Relatório de erros", color=0xe01b24)
     embed.set_author(name=interaction.user, icon_url=interaction.user.display_avatar.url)
@@ -85,50 +74,48 @@ async def report_error(self, interaction, error):
 
     await admin.send(embed=embed)
 
-async def initiate_user(self, member_id, member_name):
-    user_ = await self.db.execute(
-        """
-            INSERT INTO users (id, rank, xp, xptotal, user_name) 
-            VALUES (\'%s\', 0, 5, 5, \'%s\')
-            ON CONFLICT (id) DO NOTHING
-            RETURNING *;
-        """ % (str(member_id), message.author.name, )
+
+async def initiate_user(self, member_id, member_name, info=None):
+    user_ = await self.database.insert(
+        "users",
+        {
+            "id": member_id,
+            "rank": 0,
+            "xp": 5,
+            "xptotal": 5,
+            "user_name": str(member_name),
+        }
     )
 
-    user_id, rank, xp, xptotal, info, spark, ori, iventory_id, birth, rank_id, user_name, email = user_
-    # id, rank, xp, xptotal, info, spark, ori, iventory_id, birth, rank_id, user_name, email
+    self.log(message=f"{user_}", name="TESTE-functions.initiate_user")
 
-    await self.db.execute("""
-            INSERT INTO iventory (  iventory_id, itens ) 
-            VALUES ( \'%s\',  '%s' )
-            ON CONFLICT (iventory_id) DO NOTHING
-            RETURNING moldura, car, banner, badge::jsonb
-
-        """ % ( iventory_id,
-            '{"Badge": {"rank": {"ids": {}}, "equipe": {"ids": {}}, "moldura": {"ids": {}}, "apoiador": {"ids": {}}}, "Carro": {"ids": {}}, "Banner": {"ids": {}}, "Moldura": {"rank": {"ids": {}}, "equipe": {"ids": {}}, "moldura": {"ids": {}}, "apoiador": {"ids": {}}}, "Utilizavel": {"ids": {}}}', 
-        )
+    await self.database.insert(
+        "inventory",
+        {
+            "id": member_id,
+            "itens": '{"Badge":{"rank":{"ids":[]},"equipe":{"ids":[]},"moldura":{"ids":[]},"apoiador":{"ids":[]}},"Carro":{"ids":[]},"Banner":{"ids":[]},"Moldura":{"rank":{"ids":[]},"equipe":{"ids":[]},"moldura":{"ids":[]},"apoiador":{"ids":[]}},"Utilizavel":{"ids":{}}}'
+        }
     )
-
+    user_ = await self.database.select("users", info, f"id={member_id}")
     return user_
 
-async def get_profile_info(self, member_id, member_name):
-    user_ = await self.db.fetchrow(
-        """
-            SELECT * 
-            FROM users
-            WHERE id=($1)
-        """, str(member_id)
-    )
+
+async def get_profile_info(self, member_id, member_name, info: str = None):
+    if not info:
+        info = "*"
+    user_ = await self.database.select("users", info, f"id={member_id}")
     if not user_:
-        user_ = await self.initiate_user(str(member_id), member_name)
+        user_ = await initiate_user(self, member_id, member_name, info)
 
-    return user_
+    return user_[0]
+
 
 async def send_error_response(self, interaction, msg):
     if interaction.response.type == discord.InteractionResponseType.channel_message:
         return await interaction.response.send_message(msg, ephemeral=True)
     elif interaction.response.type == discord.InteractionResponseType.deferred_message_update:
-        return await interaction.followup.send(msg, ephemeral=True)  
+        return await interaction.followup.send(msg, ephemeral=True)
+
 
 def convert(time):
     """
@@ -179,14 +166,15 @@ def timeRemaning(seconds):
         d = f"{a} horas {b} minutos"
         return d
 
+
 async def createTables(self):
     # CRIA TABLES
-    with open(os.path.join('./base/db', 'tables.sql'), 'r') as e:
+    with open(join('./base/classes', 'SCHEMA.sql'), 'r') as e:
         try:
-            await self.db.execute(e.read())
+            await self.database.query(e.read())
 
         except Exception as f:
-            log.exception(f)
+            self.log(message=f, name="functions.createTables")
             return f
 
         return True
@@ -202,28 +190,26 @@ async def starterRoles(self, msg):
     if not _tables:
         return f"Os cargos não puderam ser criados. {_tables}"
 
-
-    classes = self.cfg.ranks
+    config = self.config["other"]
+    classes = config["ranks"]
     # x = []
-    colors = self.cfg.colors
+    colors = config["colors"]
     count = 0
 
     if not classes:
         return f"Parece que você não inseriu nenhuma classe nas configurações."
-    
+
     if not colors:
         return f"Parece que você não inseriu nenhuma cor nas configurações."
 
     if len(classes) != len(colors):
-        return f"Toda classe precisa ter uma cor e toda cor precisa ter uma classe. "
-        " Verifique se o número de cor é o mesmo que o de classes."
-        f"\n\nNúmero de classes/cor: {len(classes)}/{len(colors)}"        
-
-    # await self.db.execute("""
-    #     insert into ranks(name, badges, lvmin) select name, img_bdg, lvmin from molds on conflict (name) do nothing returning lvmin;
-    # """)
+        return f"Toda classe precisa ter uma cor e toda cor precisa ter uma classe. " \
+               " Verifique se o número de cor é o mesmo que o de classes." \
+               f"\n\nNúmero de classes/cor: {len(classes)}/{len(colors)}"
 
     for i, value in enumerate(classes):
+        if i > len(classes):
+            break
 
         z = colors[i]
         # x = tuple((z[0], z[1], z[2]))
@@ -233,35 +219,22 @@ async def starterRoles(self, msg):
         imgPathName = '-'.join(value.split())
         try:
 
-            await self.db.execute("""
-                INSERT INTO ranks (
-                    name, lvmin, r, g, b, roleid, badges, imgxp
-                )
-                VALUES (
-                    '%(rank_name)s', %(lv)s, %(r)s, %(g)s, %(b)s, 
-                    '%(roleid)s', '%(badges)s', '%(imgxp)s' 
-                )
-            """ % {
-                'rank_name': str(value),
-                'lv': int(count),
-                'r': int(z[0]),
-                'g': int(z[1]),
-                'b': int(z[2]),
-                'roleid': str(rankRole.id),
-                'badges': 'src/imgs/badges/rank/%s.png' % (imgPathName,),
-                'imgxp': 'src/imgs/molduras/molduras-perfil/xp-bar/%s.png' % (imgPathName,), })
-
-            # await self.db.fetch("""
-            #    INSERT INTO ranks
-            #     (lv, name, r, g, b, roleid, badges, imgxp) VALUES
-            #     (%s, \'%s\', %s, %s, %s, %s,
-            #     \'src/imgs/badges/rank/#%s.png\',
-            #     \'src/imgs/molduras/molduras-perfil/xp-bar/#%sxp.png\')
-            # """ % (i*10 if i != 0 else 10, value, z[0], z[1], z[2], rankRole.id, i, i))
+            await self.database.insert("ranks",
+                                       {
+                                           "name": str(value),
+                                           "lvmin": int(count),
+                                           "r": int(z[0]),
+                                           "g": int(z[1]),
+                                           "b": int(z[2]),
+                                           "roleid": str(rankRole.id),
+                                           "badges": f"src/imgs/badges/rank/{imgPathName}.png",
+                                           "imgxp": f"src/imgs/molduras/molduras-perfil/xp-bar/{imgPathName}.png",
+                                       }
+                                       )
 
         except Exception as o:
             await msg.channel.send(f"`{o}`")
-            raise (o)
+            self.log(message=str(o), name="functions.starterRoles")
         else:
             print_progress_bar(
                 i, len(classes), " progresso de badges criadas")
@@ -270,196 +243,161 @@ async def starterRoles(self, msg):
     return "Todas as classes foram criadas"
 
 
+async def drop_itens(self):
+    await self.database.query("DELETE FROM banners WHERE type_=('Banner')")
+    sys.stdout.write("\nTODAS AS BANNERS FORAM REMOVIDAS...")
+    sys.stdout.flush()
+    await self.database.query("DELETE FROM molds WHERE type_=('Moldura')")
+    sys.stdout.write("\nTODAS AS MOLDURAS FORAM REMOVIDAS...")
+    sys.stdout.flush()
+    await self.database.query("DELETE FROM badges WHERE type_=('Badge')")
+    sys.stdout.write("\nTODAS AS BADGES FORAM REMOVIDAS...")
+    sys.stdout.flush()
+
+    await self.database.query("DELETE FROM shop WHERE value >= 0")
+    sys.stdout.write("\nTODAS OS ITENS DA LOJA FORAM REMOVIDAS...")
+    sys.stdout.flush()
+    await self.database.query("DELETE FROM items WHERE value >= 0")
+    sys.stdout.write("\nTODAS OS ITENS DO BACKUP FORAM REMOVIDAS...")
+    sys.stdout.flush()
+
+
+
 async def starterItens(self):
     """
     Adiciona os itens criados à loja
     {Muuita preguiça de fazer loop pra tudo, só usei os que eu já tinha }
 
     """
-    # titles = [filename for filename in os.listdir(
+
+    try:
+        await drop_itens(self)
+    except Exception as e:
+        self.log(message=e, name="functions.starterItens")
+        raise e
+    finally:
+        sys.stdout.write("\n......")
+        sys.stdout.flush()
+
+    # titles = [filename for filename in listdir(
     #     'src/imgs/titulos') if filename.endswith('.png')]
     # title_value = [12000, 25000, 69000, 70000, 125000, 178000, 200000]
 
-    banners = [filename for filename in os.listdir(
-        'src/imgs/banners') if filename.endswith('.png')]
+    imgs_dir = join(root_directory, 'src', 'imgs')
 
-    molduras_rank = [filename for filename in os.listdir(
-        'src/imgs/molduras/molduras-loja') if filename.endswith('.png')]
-    molduras_extra = [filename for filename in os.listdir(
-        'src/imgs/molduras/molduras-perfil/bordas/extra') if filename.endswith('.png')]
-    sys.stdout.write(str(molduras_extra))
-    sys.stdout.flush()
+    banners = [filename for filename in listdir(
+        join(imgs_dir, 'banners')) if filename.endswith('.png')]
+    molduras_rank = [filename for filename in listdir(
+        join(imgs_dir, 'molduras', 'molduras-loja')) if filename.endswith('.png')]
+    molduras_extra = [filename for filename in listdir(
+        join(imgs_dir, 'molduras', 'molduras-perfil', 'bordas', 'extra')) if filename.endswith('.png')]
     # START MOLDS INSERT
     for i, item in enumerate(molduras_rank):
         item_name = ' '.join(item.split('-'))[0:-4]
         try:
             '''
+                * Imagens:
                 - moldura loja
                 - barra de xp
                 - badge
                 - moldura perfil
                 - barra em que fica o nome do rank
             '''
-            await self.db.execute("""
-                INSERT INTO molds (
-                    name, lvmin, canbuy, 
-                    img, 
-                    imgxp, 
-                    img_bdg, 
-                    img_profile, 
-                    img_mold_title
-                ) VALUES ('%(name)s', 0, True,
-                    'src/imgs/molduras/molduras-loja/%(item)s',
-                    'src/imgs/molduras/molduras-perfil/xp-bar/%(item)s',
-                    'src/imgs/badges/rank/%(item)s',
-                    'src/imgs/molduras/molduras-perfil/bordas/rank/%(item)s', 
-                    'src/imgs/molduras/molduras-perfil/titulos/%(item)s'
-                ) ON CONFLICT (name) DO NOTHING
-            """ % {'name': item_name, 'item': item, })
+            await self.database.insert(
+                "molds",
+                {
+                    "name": str(item_name),
+                    "lvmin": 0,
+                    "canbuy": True,
+                    "img": f"src/imgs/molduras/molduras-loja/{item}",
+                    "imgxp": f"src/imgs/molduras/molduras-perfil/xp-bar/{item}",
+                    "img_bdg": f"src/imgs/badges/rank/{item}",
+                    "img_profile": f"src/imgs/molduras/molduras-perfil/bordas/rank/{item}",
+                    "img_mold_title": f"src/imgs/molduras/molduras-perfil/titulos/{item}"
+                }
+            )
+
         except Exception as o:
-            if isinstance(o, asyncpg.exceptions.PostgresSyntaxError):
-                continue
-            else:
-                raise o
+            self.log(message=str(o), name="functions.starterRoles")
         else:
             print_progress_bar(
                 i, len(molduras_rank), " progresso de molduras de rank criadas")
+
     # Molduras "extra""
     for i, item in enumerate(molduras_extra):
         item_name = ' '.join(item.split('-'))[0:-4]
-        sys.stdout.write(item_name)
-        sys.stdout.flush()
-        sys.stdout.write(item)
-        sys.stdout.flush()
         try:
 
-            await self.db.execute("""
-                INSERT INTO molds (
-                    name, lvmin, canbuy, 
-                    group_, category,
-                    img, 
-                    img_profile
-                ) VALUES (
-                    '%(name)s', 0, True, 
-                    'moldura', 'Lendário',
-                    'src/imgs/molduras/molduras-perfil/bordas/extra/%(item)s',
-                    'src/imgs/molduras/molduras-perfil/bordas/extra/%(item)s'
-                ) ON CONFLICT (name) DO NOTHING
-            """ % {'name': item_name, 'item': item, })
+            await self.database.insert(
+                "molds",
+                {
+                    "name": str(item_name),
+                    "lvmin": 0,
+                    "canbuy": True,
+                    "group_": "moldura",
+                    "category": "Lendário",
+                    "img": f"src/imgs/molduras/molduras-perfil/bordas/extra/{item}",
+                    "img_profile": f"src/imgs/molduras/molduras-perfil/bordas/extra/{item}"
+                }
+            )
+
             print_progress_bar(i, len(molduras_extra), " progresso de molduras 'extras' criadas")
         except Exception as f:
-            if isinstance(f, asyncpg.exceptions.PostgresSyntaxError):
-                continue
-            else:
-                raise f
+            raise f
 
-    sys.stdout.write("\nAtualizando lvmin das badges...")
-    sys.stdout.flush()
-    await self.db.fetch(
-        """
-            UPDATE badges SET lvmin = (
-                SELECT lvmin FROM ranks WHERE ranks.name = badges.name
-            )
-        """
-    )
+
     sys.stdout.write("\nAtualizando lvmin das molduras...")
     sys.stdout.flush()
-    await self.db.fetch(
+    await self.database.query(
         """
             UPDATE molds SET lvmin = (
                 SELECT lvmin FROM ranks WHERE ranks.name = molds.name
             )
         """
     )
-    sys.stdout.write("\nTodas as molduras e badges foram criadas e atualizadas")
+    sys.stdout.write("\nTodas as molduras foram criadas e atualizadas")
     sys.stdout.flush()
-    # END MOLDS INSERT
 
+    # ADD BADGES INSERT
+    await self.database.query("""
+            INSERT IGNORE INTO badges(name, img, lvmin) SELECT name, img_bdg, lvmin FROM molds;
+        """)
+    sys.stdout.write("\nTodas as badges foram criadas")
+    sys.stdout.flush()
+
+    sys.stdout.write("\nAtualizando lvmin das badges...")
+    sys.stdout.flush()
+    await self.database.query(
+        """
+            UPDATE badges SET lvmin = (
+                SELECT lvmin FROM ranks WHERE ranks.name = badges.name
+            )
+        """
+    )
+    sys.stdout.write("\nTodas as badges foram criadas e atualizadas...")
+    sys.stdout.flush()
     # START BANNERS INSERT
 
     for i, item in enumerate(banners):
         item_name = ' '.join(item.split('-'))[0:-4]
-        await self.db.execute("""
-            INSERT INTO banners (
-                name, 
-                canbuy,
-                img_loja, 
-                img_perfil 
-            ) 
-            VALUES (
-                '%(name)s', true,
-                'src/imgs/banners/%(item)s',
-                'src/imgs/banners/%(item)s' ) 
-            ON CONFLICT (name) DO NOTHING 
-        """ % {'name': item_name, 'item': item, })
+        await self.database.insert(
+            "banners",
+            {
+                "name": str(item_name),
+                "canbuy": True,
+                "img_loja": f"src/imgs/banners/{item}",
+                "img_profile": f"src/imgs/banners/{item}"
+            }
+        )
+
         print_progress_bar(i, len(banners), " progresso de banners criadas")
     sys.stdout.write("\nTodas os banners foram criadas")
     sys.stdout.flush()
 
     # END BANNERS INSERT
 
-    # ADD BADGES INSERT
-    await self.db.execute("""
-        insert into badges(name, img, lvmin) select name, img_bdg, lvmin from molds on conflict (name) do nothing;
-    """)
-    sys.stdout.write("\nTodas as badges foram criadas")
-    sys.stdout.flush()
 
-    # UTILIZAVEIS
-    boost_path = "src/imgs/utilizaveis/boost"
-    for i, file in enumerate(os.path.abspath(boost_path)):
-        if file.endswith('.png'):
-            await self.db.execute(
-                """
-                    INSERT INTO utilizaveis (
-                        name, 
-                        img, 
-                        value
-                    ) VALUES (
-                        file[:-4],
-                        os.path.join(boost_path, file),
-                        90000 * ((i+1)*2)
 
-                    ) ON CONFLICT name DO NOTHING
-
-                """
-            )
-            sys.stdout.write("\nItem %s criado." % (file[:-4]))
-            sys.stdout.flush()
-
-    # CONSUMABLE ITENS
-    consummable_path = "src/imgs/utilizaveis"
-    for i, file in enumerate(os.path.abspath(boost_path)):
-        if file.endswith('.png'):
-            await self.db.execute(
-                """
-                    INSERT INTO utilizaveis (
-                        name, canbuy, value, img
-                    ) VALUES (
-                        '%s', %s, %s, '%s'
-                    ) ON CONFLICT name DO NOTHING
-                """ % (file[:-4], True, 15000, os.path.join(consummable_path, file))
-            )
-            sys.stdout.write("\nItem consumível %s criado." % (file[:-4]))
-            sys.stdout.flush()
-
-    # TITULOS NÃO SÃO MAIS SUPORTADOS
-
-    # count = 0
-    # for i in titles:
-    #     # START TITLES INSERT
-    #     nome = re.search(r'\-(.*?).png', i).group(1)
-    #     print(nome, i, title_value[int(titles.index(i))])
-    #     await self.db.execute(f"""
-    #         INSERT INTO titles (
-    #             name, localimg, canbuy, value
-    #         ) VALUES ('{nome}',
-    #                 'src/imgs/titulos/{i}',
-    #                 true, {title_value[int(titles.index(i))]}
-    #         ) ON CONFLICT (name) DO NOTHING
-    #     """)
-    #     count += 1
-    # END TITLES INSERT
 
 async def get_roles(
         member: discord.Member,
@@ -497,7 +435,7 @@ def saveImage(url, fpath):
     contents = urlopen(url)
     try:
         f = open(fpath, 'w')
-        os.path.splitext(f.write(contents.read()))
+        splitext(f.write(contents.read()))
         f.close()
     except Exception as o:
         raise (o)
@@ -506,8 +444,8 @@ def saveImage(url, fpath):
 async def get_userBanner_func(self, member: discord.Member):
     uMember = member
     uMember_id = member.id
-    if uMember.is_avatar_animated:
-        req = await self.bot.http.request(discord.http.Route("GET", "/users/{uid}", uid=uMember_id))
+    if uMember.avatar.is_animated:
+        req = await self.http.request(discord.http.Route("GET", "/users/{uid}", uid=uMember_id))
         banner_id = req["banner"]
         return BytesIO(requests.get(
             f"https://cdn.discordapp.com/banners/{uMember.id}/{banner_id}?size=2048")
@@ -533,61 +471,55 @@ async def get_iventory(self, memberId):
     items_ids_ = []
 
     try:
-        rows = await self.db.fetch("""
-            SELECT * FROM jsonb_each_text(
-                (
-                    SELECT itens::jsonb FROM iventory
-                    WHERE iventory_id=(
-                        SELECT iventory_id FROM users WHERE id = ('%s')
-                    )
-                )
-            );
-        """ % (memberId,)
-                                   )
+        rows = await self.database.select(
+            "inventory",
+            "itens",
+            f"id=(SELECT id FROM users WHERE id = ({memberId}))"
+        )
         item_ids = []
         if rows:
             # transform item_type | item_groups_and_ids in list 
-            items_list = [[i[0], i[1]] for i in rows]
-            for row in items_list:
-                items_key = row[0]
-                items_value_ids = ast.literal_eval(row[1])
+            rows = ast.literal_eval(rows)
+            for row_key, row_value in rows.items():
+                items_key = row_key
+                items_value_ids = row_value
+
                 list_value = []
+
                 # separate groups ans keys
                 for key, value in items_value_ids.items():
-                    if key != 'ids':
-                        value = ast.literal_eval(str(value))
+                    if key == 'ids':
+                        if not value:
+                            continue
+                        list_value.append(value)
+                        continue
 
-                    # print(check_value_type)
-                    # print(type(check_value_type))
                     for k, v in value.items():
 
-                        new_value = None
-
-                        if k == 'ids':
-                            new_value = v
-                        else:
-                            new_value = value
+                        new_value = v
 
                         if not new_value:
                             continue
 
-                        list_value.append(new_value)
+                    list_value.append(new_value)
 
-                item_ids.append([items_key, ast.literal_eval(str(list_value))])
+                item_ids.append([items_key, list_value])
 
         print(time.time() - start_time, flush=True)
+        print("Itens >>>>>")
+        print(item_ids)
+        print("<<<<< Itens")
         return item_ids
 
     except Exception as e:
-        raise e
+        self.log(message=str(e), name="functions.get_iventory")
 
 
 def checktype_(type):
-
     a = str(type).upper()
-    itype = None 
+    itype = None
 
-    if a == "MOLDURA": 
+    if a == "MOLDURA":
         itype = 'molds'
     elif a == "BANNER":
         itype = 'banners'
@@ -600,275 +532,18 @@ def checktype_(type):
 
     return itype
 
-## DO NOT USE
-async def user_inventory(
-        self,
-        member,
-        opt: Optional[
-            Literal[
-                "remove", "add"
-            ]
-        ],
-        iventory_key=None,
-        newValue=None
-):
-    #
-    #   ADICIONA/REMOVE ITENS E QUANTIDADES
-    #   iventory_key: str = TIPO DO ITEM  (EX: Badge, Moldura, Banner)
-    #   newValue: str(uuid) = ID VERDADEIRO DO ITEM
-    #
-
-    sys.stdout.flush()
-    res = ""
-    itensId = newValue
-    if isinstance(itensId, list):
-        itensId = [i for i in itensId]
-
-    iventoryId = await self.db.fetch("SELECT iventory_id FROM users WHERE id = (\'%s\')" % (member,))
-    if iventoryId:
-        iventoryId = iventoryId[0][0]
-
-    item_find = checktype_(iventory_key)
-    is_badge_mold = False
-    item_group = ''
-    if iventory_key == 'Badge' or iventory_key == 'Moldura':
-        item_group = await self.db.fetch(
-            """
-                    SELECT group_ FROM %s WHERE id=(\'%s\')
-                """ % (
-                item_find,
-                itensId,
-            )
-        )
-        item_group = str(item_group[0][0])
-        is_badge_mold = True
-
-    try:
-
-        if opt == "remove":
-            res = 'remove'
-            if iventory_key == 'Badge' or iventory_key == 'Moldura':
-                # REMOVE 1 UNIDADE DO ITEM
-                # REMOVE 1 UNIDADE DO ITEM
-                await self.db.fetch(
-                    """
-                        UPDATE iventory SET itens = jsonb_set(
-                            itens::jsonb,
-                            '{%(iKEY)s, %(iGROUP)s, ids, %(iID)s}'::text[],
-                            (
-                                SELECT COALESCE(
-                                    (
-                                        SELECT CAST(
-                                            itens::jsonb->\'%(iKEY)s\'->'%(iGROUP)s'->'ids'->\'%(iID)s\' as INTEGER
-                                        ) - 1  FROM iventory
-                                        WHERE iventory_id=(\'%(iINV)s\')
-                                    ), 0 
-                                )::text as _item
-                            )::jsonb,
-                            true
-                        )
-                        WHERE iventory_id=(
-                            \'%(iINV)s\'
-                        )
-                        
-                    """ % {
-                        'iKEY': iventory_key,
-                        'iGROUP': item_group,
-                        'iID': itensId,
-                        'iINV': iventoryId
-                    }
-                )
-
-                # REMOVE SE UANTIDADE FOR 0 
-                # (útil apenas para itens utilizáveis/consumíveis)
-                try:
-                    print("Tentando pegar valores zerados...")
-                    null_values = await self.db.fetch(
-                        """
-                            SELECT * FROM (
-                                SELECT 
-                                    iventory_id,
-                                    (jsonb_each_text(itens::jsonb->'%(iKEY)s'->\'%(iGROUP)s\'->'ids')).* 
-                                FROM
-                                    iventory t
-                            ) denormalized_values
-                            WHERE VALUE < '1' and iventory_id = \'%(iINV)s\'
-                        """ % {
-                            'iKEY': iventory_key,
-                            'iGROUP': item_group,
-                            'iINV': iventoryId
-                        }
-                    )
-                    # print(null_values)
-                except Exception as e:
-                    print(e)
-                # print(', '.join(["{%s, %s, %s}" % (iventory_key, 'ids', n[1]) for n in null_values]))
-
-                print("{%s, %s, %s, %s}" % (iventory_key, item_group, 'ids', n[1]) for n in null_values)
-                try:
-                    t = ["{%s, %s, %s, %s}" % (iventory_key, item_group, 'ids', n[1]) for n in null_values]
-                    t = ', '.join(t)
-                    print(t)
-                    for n in null_values:
-                        print("Tentando apagar valores zerados...")
-                        query = "SELECT itens::jsonb " + "#-" + " '{%(iKEY)s}'::text[] FROM iventory WHERE iventory_id = ('%(iINV)s')" % {
-                            'oKEY': iventory_key,
-                            'iKEY': t,
-                            'iGROUP': item_group,
-                            'iINV': iventoryId
-                        }
-                        aa = await self.db.fetch(query)
-                        print(aa)
-
-                    print("Feito.")
-                except Exception as e:
-                    print(e)
-
-
-            else:
-                # REMOVE 1 UNIDADE DO ITEM
-                await self.db.fetch(
-                    """
-                        UPDATE iventory SET itens = jsonb_set(
-                            itens::jsonb,
-                            '{%(iKEY)s, ids, %(iID)s}'::text[],
-                            (
-                                SELECT COALESCE(
-                                    (
-                                        SELECT CAST(
-                                            itens::jsonb->\'%(iKEY)s\'->'ids'->\'%(iID)s\' as INTEGER
-                                        ) - 1  FROM iventory
-                                        WHERE iventory_id=(\'%(iINV)s\')
-                                    ), 0
-                                )::text as _item
-                            )::jsonb,
-                            true
-                        )
-                        WHERE iventory_id=(
-                            \'%(iINV)s\'
-                        )
-                    """ % {
-                        'iKEY': iventory_key,
-                        'iGROUP': item_group,
-                        'iID': itensId,
-                        'iINV': iventoryId
-                    }
-                )
-
-                # REMOVE SE UANTIDADE FOR 0 
-                # (útil apenas para itens utilizáveis/consumíveis)
-                try:
-                    print("Tentando pegar valores zerados...")
-                    null_values = await self.db.fetch(
-                        """
-                            SELECT * FROM (
-                                SELECT 
-                                    iventory_id,
-                                    (jsonb_each_text(itens::jsonb->'%(iKEY)s'->'ids')).* 
-                                FROM
-                                    iventory t
-                            ) denormalized_values
-                            WHERE VALUE < '1' and iventory_id = \'%(iINV)s\'
-                        """ % {
-                            'iKEY': iventory_key,
-                            'iGROUP': item_group,
-                            'iINV': iventoryId
-                        }
-                    )
-                    print(null_values)
-                except Exception as e:
-                    print(e)
-                # print(', '.join(["{%s, %s, %s}" % (iventory_key, 'ids', n[1]) for n in null_values]))
-                print((tuple("{%s, %s, %s, %s}") % (iventory_key, item_group, 'ids', n[1]) for n in null_values))
-                try:
-                    t = ["{%s, %s, %s}" % (iventory_key, 'ids', n[1]) for n in null_values]
-                    t = ', '.join(t)
-                    for n in null_values:
-                        print("Tentando apagar valores zerados...")
-                        query = "SELECT itens::jsonb" + " #- " + "'{%(iKEY)s}'::text[] FROM iventory WHERE iventory_id = ('%(iINV)s')" % {
-                            'iKEY': t,
-                            'iINV': iventoryId
-                        }
-                        aa = await self.db.fetch(query)
-                        print(aa)
-
-                    print("Feito.")
-                except Exception as e:
-                    print(e)
-
-        elif opt == "add":
-            if iventory_key == 'Badge' or iventory_key == 'Moldura':
-                res = await self.db.fetch(
-                    """
-                        UPDATE iventory SET itens = jsonb_set(
-                            itens::jsonb,
-                            '{%(i)s, %(iGROUP)s, ids, %(iID)s}'::text[],
-                            (
-                                SELECT COALESCE(
-                                    (
-                                        SELECT CAST(
-                                            itens::jsonb->\'%(iKEY)s\'->'%(iGROUP)s'->'ids'->\'%(iID)s\' as INTEGER
-                                        ) + 1  FROM iventory
-                                        WHERE iventory_id=(\'%(iINV)s\')
-                                    ), 0 
-                                )::text as _item
-                            )::jsonb,
-                            true
-                        )
-                        WHERE iventory_id=(
-                            \'%(iINV)s\'
-                        )
-
-                    """ % {
-                        'iKEY': iventory_key,
-                        'iGROUP': item_group,
-                        'iID': itensId,
-                        'iINV': iventoryId
-                    }
-                )
-
-            else:
-                res = await self.db.fetch(
-                    """
-                        UPDATE iventory SET itens = jsonb_set(
-                            itens::jsonb,
-                            '{%(i)s, ids, %(iID)s}'::text[],
-                            (
-                                SELECT COALESCE(
-                                    (
-                                        SELECT CAST(
-                                            itens::jsonb->\'%(iKEY)s\'->'ids'->\'%(iID)s\' as INTEGER
-                                        ) + 1  FROM iventory
-                                        WHERE iventory_id=(\'%(iINV)s\')
-                                    ), 0 
-                                )::text as _item
-                            )::jsonb,
-                            true
-                        )
-                        WHERE iventory_id=(
-                            \'%(iINV)s\'
-                        )
-
-                    """ % {
-                        'iKEY': iventory_key,
-                        'iID': itensId,
-                        'iINV': iventoryId
-                    }
-                )
-    except Exception as a:
-        raise a
-
-    return res
-
 
 ## -------
 ## USE THIS ONE INSTEAD
-async def inventory_update_key(self, user_inventory_id, group, sub_group: Optional[Literal[str]], item_id: str,
-                               purpose: Optional[Literal['buy', 'use', 'show']],
-                               increment: Optional[Literal[0, 1]]) -> str:
+async def inventory_update_key(
+        self,
+        user_inventory_id, group, sub_group: Optional[Literal[str]], item_id: str,
+        purpose: Optional[Literal['buy', 'use', 'show']],
+        increment: Optional[Literal[0, 1]]
+) -> str:
     """
     user_inventory_id:
-        the id (uuid) of the user's inventory
+        the id (int) of the user's inventory
     group:
         the first key in the JSON structure where the new key should be added
     sub_group:
@@ -881,36 +556,29 @@ async def inventory_update_key(self, user_inventory_id, group, sub_group: Option
         smt he doesn't have
     increment:
         1 if the item should be incremented, else 0 if it must be removed
+
+
     """
     if not sub_group:
         sub_group = 'ids'
 
-    if item_id:
-        if isinstance(item_id, UUID):
-            item_id = str(item_id)
-
     try:
         # Define the query to fetch the current data for the group
-        result = await self.db.fetchval(
-            """
-                SELECT itens::json
-                FROM iventory 
-                WHERE iventory_id = $1 
-                FOR UPDATE
-            """, user_inventory_id
-        )
-        log.info(result)
-        data = ast.literal_eval(result)
-        print(data, flush=True)
+        result = await self.database.select("inventory", "itens", f"id = {user_inventory_id}")
+
+        self.log(message=result, name="functions.inventory_update_key")
+        data = ast.literal_eval(result[0])
+        self.log(message=data, name="functions.inventory_update_key")
         if purpose == 'show':
             return data
         if group not in data:
-            print("inside if", flush=True)
+            self.log(message="inside if", name="functions.inventory_update_key")
             data[group] = {}
+
         subkeys = sub_group.split('.')
 
         current_subkey = data[group]
-        print(current_subkey, flush=True)
+        self.log(message=current_subkey, name="functions.inventory_update_key")
 
         if group in ['Moldura', 'Badge']:
             for subkey in subkeys[:-1]:
@@ -924,7 +592,7 @@ async def inventory_update_key(self, user_inventory_id, group, sub_group: Option
         else:
             current_subkey = current_subkey[subkeys[-1]]
 
-        print(current_subkey, flush=True)
+        self.log(message=current_subkey, name="functions.inventory_update_key")
 
         # if subkeys[-1] != "ids": # and group == 'Utilizavel' or 'Carro'
         #    if subkeys[-1] not in current_subkey:
@@ -933,39 +601,39 @@ async def inventory_update_key(self, user_inventory_id, group, sub_group: Option
 
         # if "ids" not in current_subkey:
         #     current_subkey = {}
-        print(current_subkey.get(item_id), flush=True)
+        self.log(message=current_subkey.get(item_id), name="functions.inventory_update_key")
         if uuid_value := current_subkey.get(item_id):
-            print(uuid_value, flush=True)
+            self.log(message=uuid_value, name="functions.inventory_update_key")
             if increment is None:  # or group not in ['Utilizavel', 'Carro']
                 return "ITEM_ALREADY_EXISTS"
 
             current_subkey[item_id] = (uuid_value + increment) if increment == 1 else (uuid_value - 1)
-            print("aaa", flush=True)
-            print(current_subkey, flush=True)
+            self.log(message="aaa", name="functions.inventory_update_key")
+            self.log(message=current_subkey, name="functions.inventory_update_key")
 
             if current_subkey[item_id] == 0:
                 del current_subkey[item_id]
 
-            print(current_subkey, flush=True)
+            self.log(message=current_subkey, name="functions.inventory_update_key")
         else:
             # IF IT DONT EXIST
             if purpose == 'buy':
-                print(type(item_id), flush=True)
+                self.log(message=type(item_id), name="functions.inventory_update_key")
                 current_subkey[item_id] = 1
             elif purpose == 'use':
                 if item_id not in current_subkey:
                     return "ITEM_DONT_EXISTS"
 
         data = json.dumps(data)
-        print(data, flush=True)
-        await self.db.execute(
+        self.log(message=data, name="functions.inventory_update_key")
+        await self.database.query(
             "UPDATE iventory SET itens = \'%s\' WHERE iventory_id = \'%s\'" % (str(data), user_inventory_id))
 
         return "ITEM_ADDED_SUCCESSFULLY"
 
     except Exception as f:
-        log.exception(f)
-        print(repr(f), flush=True)
+        self.log(message=f, name="functions.inventory_update_key")
+        self.log(message=repr(f), name="functions.inventory_update_key")
 
 
 ## -------
@@ -1021,7 +689,7 @@ async def sendEmb(user, author):
 
 async def checkRelease(self, interaction):
     try:
-        channel = interaction.guild.get_channel(self.cfg.chat_release)
+        channel = interaction.guild.get_channel(self.config["chat_release"])
         messages = [message async for message in channel.history(limit=1)]
         # messages = await channel.history(limit=1).flatten()
         messages.reverse()
@@ -1157,48 +825,3 @@ async def getfile(message):
     except Exception as e:
         raise (e)
     return filename, res
-
-## BOT MENAGEMENT
-
-async def cogs_manager(bot: commands.Bot, mode: str, cogs: list[str]) -> None:
-    for cog in cogs:
-        try:
-            if mode == "unload":
-                await bot.unload_extension(cog)
-            elif mode == "load":
-                await bot.load_extension(cog)
-            elif mode == "reload":
-                await bot.reload_extension(cog)
-            else:
-                raise ValueError("Invalid mode.")
-            bot.log(f"Cog {cog} {mode}ed.", name="classes.utilities", level=logging.DEBUG)
-        except Exception as e:
-            raise e
-
-def bot_has_permissions(**perms: bool):
-    """A decorator that add specified permissions to Command.extras and add bot_has_permissions check to Command with specified permissions.
-    
-    Warning:
-    - This decorator must be on the top of the decorator stack
-    - This decorator is not compatible with commands.check()
-    """
-    def wrapped(command: Union[app_commands.Command, commands.HybridCommand, commands.Command]) -> Union[app_commands.Command, commands.HybridCommand, commands.Command]:
-        if not isinstance(command, (app_commands.Command, commands.hybrid.HybridCommand, commands.Command)):
-            raise TypeError(f"Cannot decorate a class that is not a subclass of Command, get: {type(command)} must be Command")
-
-        valid_required_permissions = [
-            perm for perm, value in perms.items() if getattr(discord.Permissions.none(), perm) != value
-        ]
-        command.extras.update({"bot_permissions": valid_required_permissions})
-
-        if isinstance(command, commands.HybridCommand) and command.app_command:
-            command.app_command.extras.update({"bot_permissions": valid_required_permissions})
-
-        if isinstance(command, (app_commands.Command, commands.HybridCommand)):
-            app_commands.checks.bot_has_permissions(**perms)(command)
-        if isinstance(command, (commands.Command, commands.HybridCommand)):
-            commands.bot_has_permissions(**perms)(command)
-
-        return command
-
-    return wrapped

@@ -1,15 +1,14 @@
 import requests
 import json
-from base.struct import Config
 from requests.exceptions import HTTPError
 
-from base import cfg, log
 
 
 class TrelloFunctions():
     
-    def __init__(self) -> None:
-        self.cfg = cfg
+    def __init__(self, bot) -> None:
+        self.bot = bot
+        self.cfg = self.bot.config
 
     def add_card(novelId: str, desc: str, trelloList, trelloKey, trelloToken):
         novelId = '#ID ' + str(''.join(novelId.split('#')))
@@ -52,8 +51,8 @@ class TrelloFunctions():
     async def get_last_card(self):
 
         query = {
-            'key': self.cfg.trelloKey,
-            'token': self.cfg.trelloToken
+            'key': self.cfg["other"]["trelloKey"],
+            'token': self.cfg["other"]["trelloToken"]
         }
         headers = {'Content-Type': 'application/json'}
 
@@ -61,12 +60,12 @@ class TrelloFunctions():
             response = s.request(
                 'GET',
                 'https://api.trello.com/1/lists/' \
-                f'{self.cfg.trelloList}/cards?fields=name,labels,shortUrl,desc', 
+                f'{self.cfg["other"]["trelloList"]}/cards?fields=name,labels,shortUrl,desc', 
                 params=query,
                 headers=headers)
 
             if response.ok:
-                log.info("Cards requisitados")
+                self.bot.log(message="Cards requisitados", name="function.Trello")
 
         items = []
         item_ = json.loads(response.text)
@@ -122,4 +121,4 @@ class TrelloFunctions():
 #data = '{\n  "key": "{APIKey}",\n  "callbackURL": "http://www.mywebsite.com/trelloCallback",\n  "idModel":"4d5ea62fd76aa1136000000c",\n  "description": "My first webhook"\n}'
 #response = requests.post('https://api.trello.com/1/tokens/{APIToken}/webhooks/', headers=headers, data=data)
 
-trello = TrelloFunctions()
+#trello = TrelloFunctions()

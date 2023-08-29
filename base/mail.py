@@ -4,22 +4,20 @@ from email.mime.image import MIMEImage
 import smtplib
 import ssl
 import os
-import json
 
-from base.struct import Config
+from base.Spinovelbot import SpinovelBot
 
 
 class Mail():
 
     def __init__(self, email, mailhtml, mailtxt) -> None:
         
-        with open('config.json', 'r') as f:
-            self.cfg = Config(json.loads(f.read()))
+        self.cfg = SpinovelBot.config["other"]
 
-        self.smtp_server = self.cfg.bot_mailhost
+        self.smtp_server = self.cfg["bot_mailhost"]
         self.port = 587  # For starttls
-        self.sender_email = self.cfg.bot_mail
-        self.password = self.cfg.bot_mailpass
+        self.sender_email = self.cfg["bot_mail"]
+        self.password = self.cfg["bot_mailpass"]
 
         self.email = email
         self.mailhtml = mailhtml
@@ -74,7 +72,7 @@ class Mail():
                 self.sender_email, receiver_email, message.as_string()
             )
 
-    def getEmailMessage(status):
+    def getEmailMessage(status: str) -> tuple[str, str]:
         if status == 'accept':
             email = """\
                 <!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">

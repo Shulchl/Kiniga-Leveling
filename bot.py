@@ -1,86 +1,80 @@
-import json
-import os
 import aiohttp
 import discord
 import asyncio
+import logging
 
-from discord.ext import commands
+from os import listdir
 
-from base import log, cfg
+from base.Spinovelbot import SpinovelBot
+from base.classes.utilities import load_config, clean_close, cogs_manager, set_logging, cogs_directory
 
 
-#import matplotlib
-#print(matplotlib.get_configdir(), flush=True)
-
-TEST_GUILD = discord.Object(id=943170102759686174)
-
-class SpinovelBot(commands.Bot):
+class Bot(SpinovelBot):
     def __init__(self, **kwargs) -> None:
-        
         super().__init__(
-            intents=kwargs.pop("intents"),
-            command_prefix=commands.when_mentioned_or(kwargs.pop("prefix")),
-            description=kwargs.pop("description"),
-            activity=kwargs.pop("activity"),
-            case_insensitive = True,
+            activity=kwargs.pop("activity", discord.Game(name="Iniciando..")),
+            allowed_mentions=discord.AllowedMentions(everyone=False),
+            case_insensitive=True,
+            config=kwargs.pop("config", load_config()),  # custom kwarg
+            intents=kwargs.pop("intents", discord.Intents.all()),
+            max_messages=2500,
+            status=discord.Status.idle,
+            **kwargs,
         )
 
-        log.info('Excluindo arquivos temporários...\n')
-        buffer_total, buffer_result = self.buffer_remove()
-        log.info('%s/%s Arquivos removidos.\n' % (buffer_total, buffer_result))
+    async def startup(self) -> None:
+        """Sync application commands"""
+        await self.wait_until_ready()
 
-    def buffer_remove(self) -> None:
-        total = 0
-        file = os.listdir('./_temp')
-        for filename in file:
-            if filename.endswith(".png") or filename.endswith(".jpg"):
-                os.remove('./_temp/%s' % (filename,))
-                total = total + 1
-        return len(file), total
-
-        self.session = None
-
-    async def load_cogs(self) -> None:
-        for filename in os.listdir('./base/cmds'):
-            if filename.endswith('.py'):
-                try:
-                    await self.load_extension(f'base.cmds.{filename[:-3]}')
-                except Exception as e:
-                    log.error(f'Ocorreu um erro enquanto a cog "{filename}" carregava.\n{e}')
+        # Sync application commands
+        synced = await self.tree.sync()
+        self.log(message=f"Application commands synced ({len(synced)})", name="discord.startup")
 
     async def setup_hook(self) -> None:
-        # discord.utils.setup_logging()
-        log.info(f'Logado como {self.user} (ID: {self.user.id}) usando discord.py {discord.__version__}')
-        await self.load_cogs()
-        # self.tree.copy_global_to(guild=TEST_GUILD)
-        # await self.tree.sync(guild=TEST_GUILD)
+        """Initialize the bot, database, prefixes & cogs."""
+        await super().setup_hook()
 
-    async def close(self) -> None:
-        log.info("desligando o bot...")
-        await super().close()
-        await self.session.close()
+        # Cogs loader
+        cogs = [f"base.cmds.{filename[:-3]}" for filename in listdir(cogs_directory) if filename.endswith(".py")]
+        await cogs_manager(self, "load", cogs)
+        self.log(message=f"Cogs loaded ({len(cogs)}): {', '.join(cogs)}", name="discord.setup_hook")
+
+        # Sync application commands
+        self.loop.create_task(self.startup())
 
 
-async def main() -> None:
-    bot = SpinovelBot(
-        prefix = cfg.prefix, 
-        description = cfg.description, 
-        activity = discord.Activity(
-            type=discord.ActivityType.watching, name="Spinovel"
+def main() -> None:
+    bot = Bot(
+        intents=discord.Intents(
+            emojis=True,
+            guild_scheduled_events=True,
+            guilds=True,
+            invites=True,
+            members=True,
+            message_content=True,
+            messages=True,
+            presences=True,
+            reactions=True,
+            voice_states=True,
         ),
-        intents = discord.Intents.all()
     )
-    async with aiohttp.ClientSession() as session, bot:
-        bot.session = session
-        await bot.start(cfg.bot_token)
+
+    bot.logger, streamHandler = set_logging(file_level=logging.INFO, console_level=logging.INFO, filename="discord.log")
+    bot.run(
+        bot.config["bot"]["token"],
+        reconnect=True,
+        log_handler=streamHandler,
+        log_level=logging.DEBUG,  # Must be set to DEBUG, change the log_level of each handler in set_logging() method
+    )
 
 
 async def warn() -> None:
-    return log.info("bot foi desligado usando ctrl+c no terminal!")
+    return print("bot foi desligado usando ctrl+c no terminal!", flush=True)
 
 
 if __name__ == "__main__":
+    clean_close()  # Avoid Windows EventLoopPolicy Error
     try:
-        asyncio.run(main())
+        main()
     except KeyboardInterrupt:
         asyncio.run(warn())
