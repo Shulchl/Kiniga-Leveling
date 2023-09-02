@@ -137,11 +137,18 @@ class DataSQL():
     async def increment(self, table: str, target: str, value: int = 1, condition: Optional[str] = None): # return update()
         await self.update(table, {target: MixedTypes(f"{target} + {value}")}, condition)
 
+    async def dict_increment(self, table: str, dict_increment : dict, condition: Optional[str] = None):  # return update()
+        final_dict = {}
+        for key, value in dict_increment.items():
+            final_dict[key] = MixedTypes(f"{key} + {value}")
+        await self.update(table, final_dict, condition)
+
     async def select(self, table: str, target: str, condition: Optional[str] = None, order: Optional[str] = None, limit: Optional[str] = None): # return query()
-        query = f"SELECT {target} FROM `{table}`"
+        query = f"SELECT {target} FROM {table}"
         if condition: query += f" WHERE {condition}"
         if order: query += f" ORDER BY {order}"
         if limit: query += f" LIMIT {limit}"
+        self.bot.log(f"{query + ';'}", name="func.select")
         return await self.query(query + ';')
 
     async def count(self, table: str, what: str, condition: Optional[str] = None): # return select()

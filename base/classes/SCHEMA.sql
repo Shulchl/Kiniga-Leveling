@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS inventory (
     ID BIGINT PRIMARY KEY,
-    itens JSON,
+    itens JSON DEFAULT '{"Badge":{"rank":{"ids":[]},"equipe":{"ids":[]},"moldura":{"ids":[]},"apoiador":{"ids":[]}},"Carro":{"ids":[]},"Banner":{"ids":[]},"Moldura":{"rank":{"ids":[]},"equipe":{"ids":[]},"moldura":{"ids":[]},"apoiador":{"ids":[]}},"Utilizavel":{"ids":{}}}',
     car INT,
     title INT,
     moldura INT,
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS inventory (
 );
 
 CREATE TABLE IF NOT EXISTS banners (
-    ID INT PRIMARY KEY AUTO_INCREMENT,
+    ID VARCHAR(36) PRIMARY KEY DEFAULT UUID(),
     name VARCHAR(60) NOT NULL,
     img_loja VARCHAR(255),
     img_profile VARCHAR(255),
@@ -34,12 +34,13 @@ CREATE TABLE IF NOT EXISTS banners (
     canbuy BOOLEAN DEFAULT true,
     category VARCHAR(20) DEFAULT 'Comum',
     type_ text DEFAULT 'Banner',
+    lvmin INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS badges (
-    ID INT PRIMARY KEY AUTO_INCREMENT,
+    ID VARCHAR(36) PRIMARY KEY DEFAULT UUID(),
     name VARCHAR(60) NOT NULL,
     img VARCHAR(255),
     type_ VARCHAR(20) DEFAULT 'Badge',
@@ -52,7 +53,7 @@ CREATE TABLE IF NOT EXISTS badges (
 );
 
 CREATE TABLE IF NOT EXISTS molds (
-    ID INT PRIMARY KEY AUTO_INCREMENT,
+    ID VARCHAR(36) PRIMARY KEY DEFAULT UUID(),
     name VARCHAR(60) NOT NULL,
     img VARCHAR(255),
     imgxp VARCHAR(255),
@@ -71,60 +72,42 @@ CREATE TABLE IF NOT EXISTS molds (
 );
 
 CREATE TABLE IF NOT EXISTS consumables (
-    ID INT PRIMARY KEY AUTO_INCREMENT,
+    ID VARCHAR(36) PRIMARY KEY DEFAULT UUID(),
     name VARCHAR(60) NOT NULL,
+    type_ VARCHAR(20) DEFAULT 'Consumable',
+    value INT DEFAULT 0,
+    value_ori INT DEFAULT 0,
+    canbuy BOOLEAN DEFAULT true,
+    lvmin INT DEFAULT 0,
+    category VARCHAR(20) DEFAULT 'Comum',
+    img_loja VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS cars (
-    ID INT PRIMARY KEY AUTO_INCREMENT,
+    ID VARCHAR(36) PRIMARY KEY DEFAULT UUID(),
     name VARCHAR(60) NOT NULL,
+    value INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS items (
     ID INT PRIMARY KEY AUTO_INCREMENT,
-    ID_ITEM INT,
-    name VARCHAR(60) NOT NULL,
-    details VARCHAR(255),
-    img VARCHAR(255),
-    imgd VARCHAR(255),
-    img_profile VARCHAR(255),
-
-    type_ VARCHAR(20),
-    value INT DEFAULT 0,
-    value_ori INT DEFAULT 0,
-    canbuy BOOLEAN DEFAULT true,
-    lvmin INT,
+    ID_ITEM VARCHAR(36),
+    UNIQUE KEY(ID_ITEM),
+    type_ VARCHAR(20) NOT NULL,
     group_ VARCHAR(10),
-    category VARCHAR(20) DEFAULT 'Comum',
-    dest BOOLEAN DEFAULT false,
+    category VARCHAR(20) NOT NULL,
     limitedtime timestamp,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (ID_ITEM) REFERENCES banners(ID) ON DELETE CASCADE,
-    FOREIGN KEY (ID_ITEM) REFERENCES badges(ID) ON DELETE CASCADE,
-    FOREIGN KEY (ID_ITEM) REFERENCES molds(ID) ON DELETE CASCADE,
-    FOREIGN KEY (ID_ITEM) REFERENCES consumables(ID) ON DELETE CASCADE,
-    FOREIGN KEY (ID_ITEM) REFERENCES cars(ID) ON DELETE CASCADE
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS shop (
     ID INT PRIMARY KEY,
-    name VARCHAR(60) NOT NULL,
-    details VARCHAR(255),
-    img VARCHAR(255),
-    value INT DEFAULT 0,
-    value_ori INT DEFAULT 0,
-    lvmin INT,
-    dest BOOLEAN DEFAULT false,
-    type_ VARCHAR(20),
-    category VARCHAR(20) DEFAULT 'Comum',
-    canbuy BOOLEAN DEFAULT true,
-    group_ VARCHAR(10),
     limitedtime timestamp,
-    FOREIGN KEY (ID) REFERENCES items(ID)
+    FOREIGN KEY (ID) REFERENCES items(ID) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS ranks (

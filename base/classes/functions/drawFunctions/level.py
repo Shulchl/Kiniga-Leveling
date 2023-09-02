@@ -48,7 +48,7 @@ class drawLevel:
 
     @staticmethod
     def neededxp(level: int) -> int:
-        return ((level * level) * 300) + 100
+        return ((level * level)) + 100
 
     def level(
             self,

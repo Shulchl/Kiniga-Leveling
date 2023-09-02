@@ -273,7 +273,10 @@ class Admin(commands.Cog, name='Administração'):
         await ctx.send(e, delete_after=15)
 
     @config.command(name='setitens')
-    async def setitens(self, ctx):
+    async def setitens(
+        self, ctx,
+        opt: Optional[Literal['molds', 'banners', 'badges', 'consumables', 'shop', 'items', '*']] = str
+    ):
         await ctx.message.delete()
 
         has_ranks = await self.database.select("ranks", "name", None, "1")
@@ -285,7 +288,7 @@ class Admin(commands.Cog, name='Administração'):
             )
 
         try:
-            await starterItens(self.bot)
+            await starterItens(self.bot, opt)
         except Exception as e:
             raise e
         finally:
@@ -294,14 +297,13 @@ class Admin(commands.Cog, name='Administração'):
     @config.command(name='updateitens')
     async def updateitens(self, ctx, opt: Optional[
         Literal[
-            "loja", "*", "molds", "banners", "badges", "others"
+            "loja", "*", "molds", "banners", "badges", "others", "consum"
         ]
     ] = None):
         res = []
         if not opt:
-            return await ctx.send(
-                "Você precisa adicionar uma opção. \n(loja, *, molds, titulos, util, banners, badges)")
-
+            return await ctx.reply(
+                "Você precisa adicionar uma opção. \n(loja, *, molds, titulos, consum, banners, badges)")
         if opt == "loja":
             res = await self.shopupdate()
         elif opt == "banners":
@@ -312,185 +314,143 @@ class Admin(commands.Cog, name='Administração'):
             res = await self.updatebadges()
         elif opt == "others":
             res = await self.updateothers()
+        elif opt == "consum":
+            res = await self.updateconsu()
         elif opt == "*":
             res.append([
-                await self.updatemolds(),
                 await self.updatebanners(),
                 await self.updatebadges(),
+                await self.updatemolds(),
+                await self.updateconsu(),
                 await self.updateothers(),
                 await self.shopupdate()
             ])
         if isinstance(res, list):
             for i in res:
-                await ctx.send(i)
+                await ctx.reply(i)
         else:
-            await ctx.send(res)
+            await ctx.reply(res)
+        await ctx.message.delete()
 
     async def shopupdate(self):
         try:
 
-            await self.database.query("DELETE FROM shop WHERE value >= 0;")
+            await self.database.query("DELETE FROM shop WHERE ID is not Null;")
             await self.database.query(
                 """
-                    INSERT IGNORE INTO shop(
-                        id, name, value, type_, dest, img, lvmin
-                    )
-                    SELECT id, name, value, type_, dest, img, lvmin
-                    FROM items WHERE canbuy=true ;
+                    INSERT IGNORE INTO shop(id) 
+                        SELECT items.id
+                    FROM items;
                 """
             )
         except Exception as i:
             return f"Não foi possível atualizar a loja: \n`{i}`"
-        else:
+        finally:
             return "`A loja foi atualizada com sucesso.`"
 
     # BANNERS
     async def updatebanners(self):
         try:
-            await self.database.query("DELETE FROM items WHERE type_=('Banner')")
+            await self.database.query("DELETE FROM items WHERE type_=('Banner');")
             await self.database.query(
                 """
                     INSERT IGNORE INTO items(
-                        ID_ITEM, name, img,
-                        img_profile, canbuy, value, type_
+                        ID_ITEM, type_, category
                     )
-                    SELECT id, name, img_loja,
-                        img_profile, canbuy, value, type_
-                    FROM banners WHERE canbuy=true ;
+                    SELECT banners.id, banners.type_, 
+                            banners.category
+                    FROM banners WHERE canbuy = 1;
                 """
             )
+
         except Exception as i:
             return f"Não foi possível atualizar os banners: \n`{i}`"
-        else:
+        finally:
             return "`Os banners foram atualizados com sucesso.`"
 
     # MOLDURAS
     async def updatemolds(self):
         try:
-            await self.database.query("DELETE FROM items WHERE type_=('Moldura')")
+            await self.database.query("DELETE FROM items WHERE type_=('Moldura');")
             await self.database.query(
                 """
                     INSERT IGNORE INTO items(
-                        ID_ITEM, name, type_, value, lvmin,
-                        img, imgd, img_profile, canbuy, group_, category
+                        ID_ITEM, type_, group_, category
                     )
-                    SELECT id, name, type_, value, lvmin,
-                        img, imgxp, img_profile, canbuy, group_, category
-                    FROM molds;
+                    SELECT molds.id, molds.type_,
+                        molds.group_, molds.category 
+                    FROM molds WHERE canbuy=true;
                 """
             )
         except Exception as i:
             return f"Não foi possível atualizar as molduras: \n`{i}`"
-        else:
+        finally:
             return "`As molduras foram atualizadas com sucesso.`"
 
     '''
     async def updatetitles(self):
         try:
-            await self.database.query("DELETE FROM items WHERE type_=('Titulo')")
+            await self.database.query("DELETE FROM items WHERE type_=('Titulo');")
             await self.database.query(
                 """
                     INSERT IGNORE INTO items(
-                        ID_ITEM, name, type_,
-                        img, value, canbuy
+                        ID_ITEM, type_
                     )
-                    SELECT id, name, type_,
-                        localimg, value, canbuy
-                    FROM titles WHERE canbuy=True ;
+                    SELECT titles.id, titles.type_
+                    FROM titles WHERE canbuy=1;
                 """
             )
         except Exception as i:
             return f"Não foi possível atualizar os titulos: \n`{i}`"
-        else:
+        finally:
             return "`Os títulos foram atualizados com sucesso.`"
     '''
-    '''
-    async def updateutil(self):
+
+    async def updateconsu(self):
         try:
-            await self.database.query("DELETE FROM items WHERE type_=('Utilizavel')")
+            await self.database.query("DELETE FROM items WHERE type_=('Consumable');")
             await self.database.query(
                 """
                     INSERT IGNORE INTO items(
-                        ID_ITEM, name, type_,
-                        img, value, canbuy
+                        ID_ITEM, type_, category
                     )
-                    SELECT id, name, type_,
-                        img, value, canbuy
-                    FROM consumables WHERE canbuy=True ;
+                    SELECT consumables.id, consumables.type_, consumables.category
+                    FROM consumables WHERE canbuy=true;
                 """
             )
         except Exception as i:
             return f"Não foi possível atualizar os utilizáveis: \n`{i}`"
-        else:
+        finally:
             return "`Os utilizáveis foram atualizados com sucesso.`"
-    '''
+
     # BADGES
     async def updatebadges(self):
         try:
-            await self.database.query("DELETE FROM items WHERE type_=('Badge')")
+            await self.database.query("DELETE FROM items WHERE type_=('Badge');")
             await self.database.query(
                 """
                     INSERT IGNORE INTO items(
-                        ID_ITEM, name, 
-                        type_, img, value, lvmin, 
-                        canbuy, group_, category
+                        ID_ITEM, type_, 
+                        group_, category
                     )
-                    SELECT id, name, type_,
-                        img, value, lvmin, 
-                        canbuy, group_, category
-                    FROM badges ;
+                    SELECT badges.id, badges.type_,
+                        badges.group_, badges.category
+                    FROM badges WHERE canbuy=1;
                 """
             )
         except Exception as i:
             return f"Não foi possível atualizar as badges: \n`{i}`"
-        else:
+        finally:
             return "`As badges foram atualizadas com sucesso.`"
 
     async def updateothers(self):
         try:
 
-            badges_staff = 'src/imgs/badges/equipe/'
-            for e in os.listdir(badges_staff):
-                if e.endswith('.png'):
-                    print(str(e[:-4].title()))
-                    print(badges_staff + e)
-                    await self.database.query(
-                        f"""
-                            INSERT IGNORE INTO badges (
-                                name, img, canbuy, 
-                                value, type_, 
-                                group_, category
-                            )
-                            VALUES (
-                                "{str(e[:-4]).title()}","{str(badges_staff + e)}",
-                                {False},99999999,"Badge","equipe","Lendário"
-                            ) 
-                        """
-                    )
-
-            badges_supporter = 'src/imgs/badges/supporter/'
-            for e in os.listdir(badges_supporter):
-                if e.endswith('.png'):
-                    print(str(e[:-4].title()))
-                    print(badges_supporter + e)
-                    await self.database.query(
-                        f"""
-                            INSERT IGNORE INTO badges (
-                                name, img, canbuy, 
-                                value, type_, 
-                                group_, category
-
-                            )
-                            VALUES (
-                                "{str(e[:-4].title())}","{str(badges_supporter + e)}",
-                                {False},99999999,"Badge","apoiador","Lendário"
-                            ) 
-                        """
-                    )
+            pass
 
         except Exception as e:
             return f"Não foi possível atualizar outros itens: \n`{e}`"
-        else:
+        finally:
             return "`Outros itens também foram atualizado.`"
 
     @commands.command(name='ranking')

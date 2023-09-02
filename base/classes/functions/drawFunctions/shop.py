@@ -170,32 +170,38 @@ class drawShop:
 
                     list_itens = list(items[count].values())
 
+                    if str(list_itens[0]['category']) == "Comum":
+                        img = comumCat_image
+                    elif str(list_itens[0]['category']) == "Raro":
+                        img = raroCat_image
+                    elif str(list_itens[0]['category']) == "Lendário":
+                        img = lendCat_image
+
+                    itemImg = Image.open(list_itens[0]['img']).convert("RGBA")
+
                     if str(list_itens[0]['type']) == "Banner":
-                        itemImg = Image.open(list_itens[0]['img']).convert(
-                            "RGBA").resize((330, 185), Image.NEAREST)
+                        itemImg = itemImg.resize((330, 185), Image.NEAREST)
                         itemImg = add_corners(itemImg, 20)
                     elif str(list_itens[0]['type']) == "Utilizavel":
-                        itemImg = Image.open(list_itens[0]['img']).convert(
-                            "RGBA").resize((128, 128), Image.NEAREST)
+                        itemImg = itemImg.resize((128, 128), Image.NEAREST)
                     elif str(list_itens[0]['type']) == "Badge":
-                        itemImg = Image.open(list_itens[0]['img']).convert("RGBA")
                         itemImg = itemImg.resize(
-                            (int(itemImg.size[0] / 2), int(itemImg.size[1] / 2)), Image.NEAREST)
-                    elif str(list_itens[0]['type']) == "Titulo":
-                        itemImg = Image.open(list_itens[0]['img']).convert("RGBA")
-                    else:
-                        itemImg = Image.open(list_itens[0]['img']).convert("RGBA")
-                        lar = (itemImg.size[0], itemImg.size[1])
-                        itemImg = itemImg.resize(
-                            (int(lar[0] * 1.5), int(lar[1] * 1.5)), Image.NEAREST
-                        )
+                            (int(itemImg.size[0] * 0.5), int(itemImg.size[1] * 0.5)), Image.NEAREST)
 
-                    if int(list_itens[0]['category']) == "Comum":
-                        img = comumCat_image
-                    elif int(list_itens[0]['category']) == "Raro":
-                        img = raroCat_image
-                    elif int(list_itens[0]['category']) == "Lendário":
-                        img = lendCat_image
+                    elif str(list_itens[0]['type']) == "Titulo":
+                        itemImg = itemImg
+                    elif str(list_itens[0]['type']) == "Moldura":
+                        itemImg = itemImg
+                        if itemImg.size[0] <= 460:
+                            lar_x, alt_y = (int(itemImg.size[0] * 0.6), int(itemImg.size[1] * 0.6))
+                            itemImg = itemImg.resize(
+                                (lar_x, alt_y), Image.NEAREST
+                            )
+                        else:
+                            lar_x, alt_y = (int(itemImg.size[0] * 0.5), int(itemImg.size[1] * 0.5))
+                            itemImg = itemImg.resize(
+                                (lar_x, alt_y), Image.NEAREST
+                            )
 
                     lar = (itemImg.size[0], itemImg.size[1])
 

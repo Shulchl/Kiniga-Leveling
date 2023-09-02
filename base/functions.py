@@ -7,6 +7,7 @@
 """
 
 import ast
+import asyncio
 import datetime
 import json
 import random
@@ -27,6 +28,7 @@ from discord import app_commands
 from discord.utils import format_dt
 
 from base.classes.utilities import root_directory
+from platform import python_version
 
 __all__ = []
 
@@ -92,8 +94,7 @@ async def initiate_user(self, member_id, member_name, info=None):
     await self.database.insert(
         "inventory",
         {
-            "id": member_id,
-            "itens": '{"Badge":{"rank":{"ids":[]},"equipe":{"ids":[]},"moldura":{"ids":[]},"apoiador":{"ids":[]}},"Carro":{"ids":[]},"Banner":{"ids":[]},"Moldura":{"rank":{"ids":[]},"equipe":{"ids":[]},"moldura":{"ids":[]},"apoiador":{"ids":[]}},"Utilizavel":{"ids":{}}}'
+            "id": member_id
         }
     )
     user_ = await self.database.select("users", info, f"id={member_id}")
@@ -219,18 +220,19 @@ async def starterRoles(self, msg):
         imgPathName = '-'.join(value.split())
         try:
 
-            await self.database.insert("ranks",
-                                       {
-                                           "name": str(value),
-                                           "lvmin": int(count),
-                                           "r": int(z[0]),
-                                           "g": int(z[1]),
-                                           "b": int(z[2]),
-                                           "roleid": str(rankRole.id),
-                                           "badges": f"src/imgs/badges/rank/{imgPathName}.png",
-                                           "imgxp": f"src/imgs/molduras/molduras-perfil/xp-bar/{imgPathName}.png",
-                                       }
-                                       )
+            await self.database.insert(
+                "ranks",
+                {
+                    "name": str(value),
+                    "lvmin": int(count),
+                    "r": int(z[0]),
+                    "g": int(z[1]),
+                    "b": int(z[2]),
+                    "roleid": str(rankRole.id),
+                    "badges": f"src/imgs/badges/rank/{imgPathName}.png",
+                    "imgxp": f"src/imgs/molduras/molduras-perfil/xp-bar/{imgPathName}.png",
+                }
+            )
 
         except Exception as o:
             await msg.channel.send(f"`{o}`")
@@ -243,57 +245,219 @@ async def starterRoles(self, msg):
     return "Todas as classes foram criadas"
 
 
-async def drop_itens(self):
-    await self.database.query("DELETE FROM banners WHERE type_=('Banner')")
-    sys.stdout.write("\nTODAS AS BANNERS FORAM REMOVIDAS...")
-    sys.stdout.flush()
-    await self.database.query("DELETE FROM molds WHERE type_=('Moldura')")
-    sys.stdout.write("\nTODAS AS MOLDURAS FORAM REMOVIDAS...")
-    sys.stdout.flush()
-    await self.database.query("DELETE FROM badges WHERE type_=('Badge')")
-    sys.stdout.write("\nTODAS AS BADGES FORAM REMOVIDAS...")
-    sys.stdout.flush()
-
-    await self.database.query("DELETE FROM shop WHERE value >= 0")
-    sys.stdout.write("\nTODAS OS ITENS DA LOJA FORAM REMOVIDAS...")
-    sys.stdout.flush()
-    await self.database.query("DELETE FROM items WHERE value >= 0")
-    sys.stdout.write("\nTODAS OS ITENS DO BACKUP FORAM REMOVIDAS...")
-    sys.stdout.flush()
-
-
-
-async def starterItens(self):
-    """
-    Adiciona os itens criados à loja
-    {Muuita preguiça de fazer loop pra tudo, só usei os que eu já tinha }
-
+def uuid_formulate(target, uuid) -> str:
     """
 
-    try:
-        await drop_itens(self)
-    except Exception as e:
-        self.log(message=e, name="functions.starterItens")
-        raise e
-    finally:
-        sys.stdout.write("\n......")
-        sys.stdout.flush()
+    Parameters
+    ----------
+    uuid
 
-    # titles = [filename for filename in listdir(
-    #     'src/imgs/titulos') if filename.endswith('.png')]
-    # title_value = [12000, 25000, 69000, 70000, 125000, 178000, 200000]
+    Returns bin(hex('uuid'))
+    -------
 
-    imgs_dir = join(root_directory, 'src', 'imgs')
+    """
+    return f"UNHEX(REPLACE({target},'-',''))=(UNHEX(REPLACE({uuid},'-','')))"
+    # return f"bin(hex('{uuid}'))"
 
-    banners = [filename for filename in listdir(
-        join(imgs_dir, 'banners')) if filename.endswith('.png')]
-    molduras_rank = [filename for filename in listdir(
-        join(imgs_dir, 'molduras', 'molduras-loja')) if filename.endswith('.png')]
-    molduras_extra = [filename for filename in listdir(
-        join(imgs_dir, 'molduras', 'molduras-perfil', 'bordas', 'extra')) if filename.endswith('.png')]
-    # START MOLDS INSERT
+
+def check_case(type_) -> str:
+    """
+
+    Parameters
+    ----------
+    type_ of the item
+
+    Returns str(type_)
+    -------
+
+    """
+    type_ = type_.title()
+    if python_version() >= "3.9":
+        match type_:
+            case "Banner":
+                return "banners"
+            case "Badge":
+                return "badges"
+            case "Moldura":
+                return "molds"
+            case "Consumable":
+                return "consumables"
+    else:
+        if type_ == "Banner":
+            return "banners"
+        elif type_ == "Badge":
+            return "badges"
+        elif type_ == "Moldura":
+            return "molds"
+        elif type_ == "Consumable":
+            return "consumables"
+
+
+def check_case_reverse(type_) -> str:
+    """
+
+    Parameters
+    ----------
+    type_ of the item
+
+    Returns str(type_)
+    -------
+
+    """
+    type_ = type_.title()
+    if python_version() >= "3.9":
+        match type_:
+            case "banners":
+                return "type_='Banner'"
+            case "badges":
+                return "type_='Badge'"
+            case "molds":
+                return "type_='Moldura'"
+            case "consumables":
+                return "type_='Consumable'"
+            case "consumables":
+                return "ID is not Null"
+            case "shop":
+                return "ID is not Null"
+    else:
+        if type_ == "banners":
+            return "type_='Banner'"
+        elif type_ == "badges":
+            return "type_='Badge'"
+        elif type_ == "molds":
+            return "type_='Moldura'"
+        elif type_ == "consumables":
+            return "type_='Consumable'"
+        elif type_ == "items" or "shop":
+            return "ID is not Null"
+    if type_ not in ['molds', 'banners', 'badges', 'consumables', 'shop', 'items']:
+        return f"type_='{type_.title()}'"
+
+
+async def get_item(
+        self, target, isinnerjoin: bool = False, innerjoinfrom=None,
+        item_id=None, type_=None, condition=None, order=None
+):
+    """
+
+    Parameters
+    ----------
+    self
+    target
+    isinnerjoin
+    innerjoinfrom
+    item_id
+    type_
+    condition
+    order
+
+    Returns sql dict
+    -------
+
+    """
+    if not type_:
+        type_ = await self.database.select("items", "`type_`", f"id={item_id}", None, "1")
+        type_ = type_[0][0]
+        self.log(message=f"{type_}", name="type_.test")
+    type_case = check_case(type_)
+    # self.log(message=type_case, name="functions.get_item")
+    # self.log(message=f'"{type_case}", "{target}", {condition}, {order}', name="SDFASA")
+    if not condition:
+        condition = f"id={item_id}"
+    item = await self.database.select(
+        f"{type_case if not isinnerjoin else type_case + ' i ' + innerjoinfrom}",
+        f"{target}",
+        condition,
+        order
+    )
+    return item
+
+
+async def drop_itens(self, type):
+    """
+
+    Parameters
+    ----------
+    self
+    """
+    if type in ['molds', 'banners', 'badges', 'consumables', 'shop', 'items']:
+        try:
+            await self.database.query(f"DELETE FROM {type} WHERE {check_case_reverse(type)})")
+        except Exception as e:
+            raise e
+        finally:
+            self.log(message=f"\n{type.upper()} FORAM REMOVIDAS...", name="functions.drop_itens")
+
+    """
+    if type == 'molds':
+        try:
+            await self.database.query("DELETE FROM molds WHERE type_=('Moldura')")
+        except Exception as e:
+            raise e
+        finally:
+            self.log(message="\nTODAS AS MOLDURAS FORAM REMOVIDAS...", name="functions.drop_itens")
+    elif type == 'banners':
+        try:
+            await self.database.query("DELETE FROM banners WHERE type_=('Banner')")
+        except Exception as e:
+            raise e
+        finally:
+            self.log(message="\nTODAS AS BANNERS FORAM REMOVIDAS...", name="functions.drop_itens")
+    elif type == 'badges':
+        try:
+            await self.database.query("DELETE FROM badges WHERE type_=('Badge')")
+        except Exception as e:
+            raise e
+        finally:
+            self.log(message="\nTODAS AS BADGES FORAM REMOVIDAS...", name="functions.drop_itens")
+    elif type == 'consumables':
+        try:
+            await self.database.query("DELETE FROM consumables WHERE ID is not Null")
+        except Exception as e:
+            raise e
+        finally:
+            self.log(message="\nTODOS OS ITENS CONSUMÍVEIIS FORAM REMOVIDOS...", name="functions.drop_itens")
+    elif type == 'shop':
+        try:
+            await self.database.query("DELETE FROM shop WHERE ID is not Null")
+        except Exception as e:
+            raise e
+        finally:
+            self.log(message="\nTODAS LOJA FOI REMOVIDA...", name="functions.drop_itens")
+    elif type == 'items':
+        try:
+            await self.database.query("DELETE FROM items WHERE ID is not Null")
+        except Exception as e:
+            raise e
+        finally:
+            self.log(message="\nTODAS OS ITENS DE BACKUP FORAM REMOVIDOS...", name="functions.drop_itens")
+    else:
+        try:
+            await self.database.query(f"DELETE FROM {type} WHERE ID is not Null")
+        except Exception as e:
+            raise e
+        finally:
+            self.log(message=f"\nTODAS OS ITENS em {type} FORAM REMOVIDOS...", name="functions.drop_itens")
+    """
+
+
+async def setMolds(self, molduras_rank, molduras_extra):
+    """
+
+    Parameters
+    ----------
+    self
+    molduras_rank
+        List of molds images directory
+    molduras_extra
+        List of molds images directory
+    """
+
+    await drop_itens(self, 'molds')
+
     for i, item in enumerate(molduras_rank):
         item_name = ' '.join(item.split('-'))[0:-4]
+        self.log(message=f"{item_name}", name="mold rank name")
         try:
             '''
                 * Imagens:
@@ -303,6 +467,7 @@ async def starterItens(self):
                 - moldura perfil
                 - barra em que fica o nome do rank
             '''
+
             await self.database.insert(
                 "molds",
                 {
@@ -318,16 +483,18 @@ async def starterItens(self):
             )
 
         except Exception as o:
-            self.log(message=str(o), name="functions.starterRoles")
+            self.log(message=str(o), name="starterRoles.molduras_rank")
         else:
             print_progress_bar(
                 i, len(molduras_rank), " progresso de molduras de rank criadas")
 
+    sys.stdout.write("\nMolduras de rank inseridas...\n")
+    sys.stdout.flush()
     # Molduras "extra""
     for i, item in enumerate(molduras_extra):
         item_name = ' '.join(item.split('-'))[0:-4]
         try:
-
+            self.log(message=f"{item}", name="mold extra name")
             await self.database.insert(
                 "molds",
                 {
@@ -341,12 +508,15 @@ async def starterItens(self):
                 }
             )
 
-            print_progress_bar(i, len(molduras_extra), " progresso de molduras 'extras' criadas")
         except Exception as f:
+            self.log(message=str(f), name="starterRoles.molduras_extra")
             raise f
+        finally:
+            print_progress_bar(i, len(molduras_extra), " progresso de molduras 'extras' criadas")
+    sys.stdout.write("\nMolduras extras inseridas...\n")
+    sys.stdout.flush()
 
-
-    sys.stdout.write("\nAtualizando lvmin das molduras...")
+    sys.stdout.write("\nAtualizando lvmin das molduras...\n")
     sys.stdout.flush()
     await self.database.query(
         """
@@ -355,17 +525,68 @@ async def starterItens(self):
             )
         """
     )
-    sys.stdout.write("\nTodas as molduras foram criadas e atualizadas")
+    sys.stdout.write("\nTodas as molduras foram criadas e atualizadas\n")
     sys.stdout.flush()
 
-    # ADD BADGES INSERT
+
+async def setBadges(self, badges_staff, badges_supporter):
+    """
+
+    Parameters
+    ----------
+    self
+    badges_supporter
+        List of badges images directory
+    badges_staff
+        List of badges images directory
+    """
+    await drop_itens(self, 'badges')
     await self.database.query("""
-            INSERT IGNORE INTO badges(name, img, lvmin) SELECT name, img_bdg, lvmin FROM molds;
-        """)
-    sys.stdout.write("\nTodas as badges foram criadas")
+        INSERT IGNORE INTO badges(name, img, lvmin) 
+        SELECT molds.name, molds.img_bdg, molds.lvmin 
+        FROM molds WHERE molds.img_bdg is not Null;
+    """)
+
+    for e in listdir(badges_staff):
+        if e.endswith('.png'):
+            print(str(e[:-4].title()))
+            print(badges_staff + e)
+
+            await self.database.query(
+                f"""
+                    INSERT IGNORE INTO badges (
+                        name, img, canbuy, 
+                        value, type_, 
+                        group_, category
+                    )
+                    VALUES (
+                        "{str(e[:-4]).title()}","{str(badges_staff + e)}",
+                        false,99999999,"Badge","equipe","Lendário"
+                    ) 
+                """
+            )
+    for e in listdir(badges_supporter):
+        if e.endswith('.png'):
+            print(str(e[:-4].title()))
+            print(badges_supporter + e)
+
+            await self.database.query(
+                f"""
+                    INSERT IGNORE INTO badges (
+                        name, img, canbuy, 
+                        value, type_, 
+                        group_, category
+                    )
+                    VALUES (
+                        "{str(e[:-4].title())}","{str(badges_supporter + e)}",
+                        false,99999999,"Badge","apoiador","Lendário"
+                    ) 
+                """
+            )
+    sys.stdout.write("\nTodas as badges foram criadas\n")
     sys.stdout.flush()
 
-    sys.stdout.write("\nAtualizando lvmin das badges...")
+    sys.stdout.write("\nAtualizando lvmin das badges...\n")
     sys.stdout.flush()
     await self.database.query(
         """
@@ -374,12 +595,23 @@ async def starterItens(self):
             )
         """
     )
-    sys.stdout.write("\nTodas as badges foram criadas e atualizadas...")
+    sys.stdout.write("\nTodas as badges foram criadas e atualizadas...\n")
     sys.stdout.flush()
-    # START BANNERS INSERT
 
+
+async def setBanners(self, banners):
+    """
+
+    Parameters
+    ----------
+    self
+    banners
+        List of banners images directory
+    """
+    await drop_itens(self, 'banners')
     for i, item in enumerate(banners):
         item_name = ' '.join(item.split('-'))[0:-4]
+
         await self.database.insert(
             "banners",
             {
@@ -391,12 +623,75 @@ async def starterItens(self):
         )
 
         print_progress_bar(i, len(banners), " progresso de banners criadas")
-    sys.stdout.write("\nTodas os banners foram criadas")
+    sys.stdout.write("\nTodas os banners foram criadas\n")
     sys.stdout.flush()
 
-    # END BANNERS INSERT
+
+async def setConsumables(self, consumables: list):
+    """
+
+    Parameters
+    ----------
+    self
+    consumables
+        List of banners images directory
+    """
+    await drop_itens(self, 'consumables')
+    for i, item in enumerate(consumables):
+        item_name = ' '.join(item.split('-'))[0:-4]
+        self.log(f"{item, consumables}", "test.consumables")
+        await self.database.insert(
+            "consumables",
+            {
+                "name": str(item_name),
+                "canbuy": True,
+                "category": "Raro",
+                "img_loja": f"src/imgs/consumables/{item}"
+            }
+        )
+
+        print_progress_bar(i, len(consumables), " progresso de consumables criadas")
+    sys.stdout.write("\nTodos os consumables foram criadas\n")
+    sys.stdout.flush()
 
 
+async def starterItens(self, opt:str):
+    """
+    Adiciona os itens criados à loja
+    {Muuita preguiça de fazer loop pra tudo, só usei os que eu já tinha }
+
+    """
+
+    # titles = [filename for filename in listdir(
+    #     'src/imgs/titulos') if filename.endswith('.png')]
+    # title_value = [12000, 25000, 69000, 70000, 125000, 178000, 200000]
+
+    imgs_dir = join(root_directory, 'src', 'imgs')
+
+    banners = [filename for filename in listdir(
+        join(imgs_dir, 'banners')) if filename.endswith('.png')]
+    molduras_rank = [filename for filename in listdir(
+        join(imgs_dir, 'molduras', 'molduras-loja')) if filename.endswith('.png')]
+    molduras_extra = [filename for filename in listdir(
+        join(imgs_dir, 'molduras', 'molduras-perfil', 'bordas', 'extra')) if filename.endswith('.png')]
+    badges_staff = 'src/imgs/badges/equipe/'
+    badges_supporter = 'src/imgs/badges/supporter/'
+    consumables = ['src/imgs/consumables/']
+    # START MOLDS INSERT
+    if opt == 'molds': await setMolds(self, molduras_rank, molduras_extra)
+    elif opt == 'banners': await setBanners(self, banners)
+    elif opt == 'badges': await setBadges(self, badges_staff, badges_supporter)
+    elif opt == 'consumables': await setConsumables(self, consumables)
+    elif opt == 'shop': await drop_itens(self, "shop")
+    elif opt == 'items': await drop_itens(self, "items")
+    elif opt == '*':
+        await setMolds(self, molduras_rank, molduras_extra)
+        await setBanners(self, banners)
+        await setBadges(self, badges_staff, badges_supporter)
+        await setConsumables(self, consumables)
+        await drop_itens(self, "shop")
+        await drop_itens(self, "items")
+    else: await drop_itens(self, str(opt))
 
 
 async def get_roles(
@@ -406,6 +701,18 @@ async def get_roles(
             855117820814688307
         ]
 ):
+    """
+
+    Parameters
+    ----------
+    member
+    guild
+    roles
+
+    Returns
+    -------
+
+    """
     # roles = [943171518895095869,
     #    943174476839936010,
     #    943192163947274341,
@@ -432,6 +739,13 @@ async def get_roles(
 
 
 def saveImage(url, fpath):
+    """
+
+    Parameters
+    ----------
+    url
+    fpath
+    """
     contents = urlopen(url)
     try:
         f = open(fpath, 'w')
@@ -442,6 +756,17 @@ def saveImage(url, fpath):
 
 
 async def get_userBanner_func(self, member: discord.Member):
+    """
+
+    Parameters
+    ----------
+    self
+    member
+
+    Returns
+    -------
+
+    """
     uMember = member
     uMember_id = member.id
     if uMember.avatar.is_animated:
@@ -453,6 +778,16 @@ async def get_userBanner_func(self, member: discord.Member):
 
 
 async def get_userAvatar_func(member: discord.Member):
+    """
+
+    Parameters
+    ----------
+    member
+
+    Returns
+    -------
+
+    """
     uMember = member
     async with aiohttp.ClientSession() as session:
         async with session.get(f"{uMember.display_avatar.url}?size=1024?format=png") as resp:
@@ -474,7 +809,7 @@ async def get_iventory(self, memberId):
         rows = await self.database.select(
             "inventory",
             "itens",
-            f"id=(SELECT id FROM users WHERE id = ({memberId}))"
+            f"id={memberId}"
         )
         item_ids = []
         if rows:
@@ -527,17 +862,16 @@ def checktype_(type):
         itype = 'cars'
     elif a == "BADGE":
         itype = 'badges'
-    elif a == "UTILIZAVEL":
+    elif a == "Consumable":
         itype = 'utilizaveis'
 
     return itype
 
 
-## -------
 ## USE THIS ONE INSTEAD
 async def inventory_update_key(
         self,
-        user_inventory_id, group, sub_group: Optional[Literal[str]], item_id: str,
+        user_inventory_id: int, group: str, sub_group: Optional[Literal[str]], item_id: str,
         purpose: Optional[Literal['buy', 'use', 'show']],
         increment: Optional[Literal[0, 1]]
 ) -> str:
@@ -566,8 +900,8 @@ async def inventory_update_key(
         # Define the query to fetch the current data for the group
         result = await self.database.select("inventory", "itens", f"id = {user_inventory_id}")
 
-        self.log(message=result, name="functions.inventory_update_key")
-        data = ast.literal_eval(result[0])
+        self.log(message=group, name="functions.inventory_update_key")
+        data = ast.literal_eval(result[0][0])
         self.log(message=data, name="functions.inventory_update_key")
         if purpose == 'show':
             return data
@@ -577,57 +911,56 @@ async def inventory_update_key(
 
         subkeys = sub_group.split('.')
 
+        self.log(message=subkeys, name="functions.inventory_update_key")
         current_subkey = data[group]
-        self.log(message=current_subkey, name="functions.inventory_update_key")
 
-        if group in ['Moldura', 'Badge']:
-            for subkey in subkeys[:-1]:
-                if subkey not in current_subkey:
+        if group != "Consumable":
+            for subkey in subkeys:
+                self.log(message=subkey, name="functions.inventory_update_key after append")
+                if subkey not in current_subkey and not current_subkey.get("ids"):
                     current_subkey[subkey] = {"ids": {}}
                 current_subkey = current_subkey[subkey]
                 if subkey != "ids":
                     current_subkey = current_subkey["ids"]
-                    if item_id in current_subkey:
-                        return "ITEM_ALREADY_EXISTS"
-        else:
-            current_subkey = current_subkey[subkeys[-1]]
 
-        self.log(message=current_subkey, name="functions.inventory_update_key")
+                if increment == 0 and item_id in current_subkey:
+                    return "ITEM_ALREADY_EXISTS"
+                elif increment == 0 and item_id not in current_subkey:
+                    current_subkey.remove(item_id)
+                elif increment == 1 and item_id in current_subkey:
+                    return "ITEM_ALREADY_EXISTS"
+                elif increment == 1 and item_id not in current_subkey:
+                    current_subkey.append(item_id)
 
-        # if subkeys[-1] != "ids": # and group == 'Utilizavel' or 'Carro'
-        #    if subkeys[-1] not in current_subkey:
-        #        current_subkey[subkeys[-1]] = {"ids": {}}
-        #    current_subkey = current_subkey[subkeys[-1]]
+                self.log(message=current_subkey, name="functions.inventory_update_key after append")
+        elif not group:
+            current_subkey = current_subkey[subkeys]
 
-        # if "ids" not in current_subkey:
-        #     current_subkey = {}
-        self.log(message=current_subkey.get(item_id), name="functions.inventory_update_key")
-        if uuid_value := current_subkey.get(item_id):
-            self.log(message=uuid_value, name="functions.inventory_update_key")
-            if increment is None:  # or group not in ['Utilizavel', 'Carro']
+            self.log(message=current_subkey, name="functions.inventory_update_key Consumable ")
+            # if subkeys in ['Badge', 'Moldura']:
+            #    current_subkey[]
+            if increment == 0 and item_id in current_subkey:
                 return "ITEM_ALREADY_EXISTS"
+            elif increment == 0 and item_id not in current_subkey:
+                current_subkey.remove(item_id)
+            elif increment == 1 and item_id in current_subkey:
+                return "ITEM_ALREADY_EXISTS"
+            elif increment == 1 and item_id not in current_subkey:
+                current_subkey.append(item_id)
+            current_subkey[str(item_id)] = current_subkey.get(
+                str(item_id)) + increment if increment == 1 else current_subkey.get(str(item_id)) - 1
+            if current_subkey[str(item_id)] == 0:
+                del current_subkey[str(item_id)]
 
-            current_subkey[item_id] = (uuid_value + increment) if increment == 1 else (uuid_value - 1)
-            self.log(message="aaa", name="functions.inventory_update_key")
-            self.log(message=current_subkey, name="functions.inventory_update_key")
-
-            if current_subkey[item_id] == 0:
-                del current_subkey[item_id]
-
-            self.log(message=current_subkey, name="functions.inventory_update_key")
-        else:
-            # IF IT DONT EXIST
-            if purpose == 'buy':
-                self.log(message=type(item_id), name="functions.inventory_update_key")
-                current_subkey[item_id] = 1
-            elif purpose == 'use':
-                if item_id not in current_subkey:
-                    return "ITEM_DONT_EXISTS"
+        self.log(message=data, name="functions.inventory_update_key after insert")
 
         data = json.dumps(data)
-        self.log(message=data, name="functions.inventory_update_key")
-        await self.database.query(
-            "UPDATE iventory SET itens = \'%s\' WHERE iventory_id = \'%s\'" % (str(data), user_inventory_id))
+        self.log(message=data, name="functions.inventory_update_key after data")
+        await self.database.update(
+            "inventory",
+            {"itens": f"{data}"},
+            f"id={user_inventory_id}"
+        )
 
         return "ITEM_ADDED_SUCCESSFULLY"
 
@@ -701,7 +1034,7 @@ async def checkRelease(self, interaction):
 
         return c
     except Exception as i:
-        raise (i)
+        raise i
 
 
 async def getRelease(self, interaction):

@@ -40,7 +40,6 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
             member_id = message.author.id
 
             user_ = await get_profile_info(self.bot, member_id, message.author.name)
-            self.bot.log(message=f"{user_}", name="cmds.levelup")
             user_id, user_name, email, info, user_rank, user_xp, xptotal, spark, ori, birth, created_at, updated_at = user_
 
             if user_rank >= 80:
@@ -55,6 +54,12 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
 
             if current_xp >= neededxp(user_rank):
                 try:
+                    await self.database.dict_increment(
+                        "users",
+                        {"rank": 1, "xptotal": expectedXP, "spark": spark},
+                        f"id={member_id}"
+                    )
+                    '''
                     await self.database.query(f"""
                         UPDATE users 
                         SET rank = {user_rank + 1}, 
@@ -62,30 +67,29 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
                             spark = ( spark + {spark} ) 
                         WHERE id = ( {member_id} )
                     """)
-
+                    '''
                     rank = await self.database.select("users", "rank", f"id={message.author.id}")
 
                     await lvUpChannel.send(
                         "> %s__, você subiu para o nível %s!__ \n> `+%s sparks +%s pontos de experiência.`"
-                        % (message.author.mention, rank[0], spark, expectedXP,), delete_after=10)
-
-                    rankNames = await self.database.select("ranks", "name", f"lvmin <= {rank[0]}", "lvmin DESC")
-                    print(rankNames)
+                        % (message.author.mention, rank[0][0], spark, expectedXP,), delete_after=10)
+                    rankNames = await self.database.select(
+                        "ranks",
+                        "name",
+                        f"lvmin <= {rank[0][0]}",
+                        "lvmin DESC;")
                     nextRank = discord.utils.find(
-                        lambda r: r.name == rankNames[0],
+                        lambda r: r.name == rankNames[0][0],
                         message.guild.roles
-                    ) or rankNames[0]
+                    )
                     prevRank = [
-                        x[0] for x in rankNames if x[0] in self.config["ranks"] and x[0] != (
-                            rankNames[0] if rankNames[0] != "Novato" else "qualquercoisa")
+                        x[0] for x in rankNames if x[0] in self.config["ranks"] and str(x[0]) != str(nextRank.name)
                     ]
                     try:
-                        if nextRank in message.author.roles:
-                            return
+                        if nextRank not in message.author.roles:
+                            await message.author.add_roles(nextRank)
 
-                        await message.author.add_roles(nextRank)
-
-                        if len(prevRank) == 0:
+                        if not prevRank:
                             return
 
                         prevRank = [
@@ -94,6 +98,8 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
                             ) for i in prevRank
                         ]
 
+                        if not prevRank:
+                            return
                         for r in prevRank:
                             if r in message.author.roles:
                                 await message.author.remove_roles(r)
@@ -104,7 +110,7 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
                                 "> %s `Eu não tenho permissão para adicionar/remover cargos, reporte à um ADM.`"
                                 % (message.author.mention,)
                             )
-
+                            raise i
                         elif isinstance(i, commands.RoleNotFound):
                             await lvUpChannel.send(
                                 "> %s `Não consegui encontrar o cargo, favor, reporte à um ADM.`"
@@ -112,8 +118,15 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
                             )
                         raise i
                 except Exception as e:
+                    await lvUpChannel.send(f"{e}")
                     raise e
             else:
+                await self.bot.database.dict_increment(
+                    "users",
+                    {"xp": f"{expectedXP}", "xptotal": f"{expectedXP}", "spark": f"{spark}"},
+                    f"id={member_id}"
+                )
+                '''
                 await self.bot.database.query(f"""
                     UPDATE users 
                     SET xp=({current_xp}), 
@@ -121,6 +134,7 @@ class Levelup(commands.Cog, command_attrs=dict(hidden=True)):
                         spark=(spark + {spark}) 
                     WHERE id={member_id}
                 """)
+                '''
 
 
 async def setup(bot: SpinovelBot) -> None:

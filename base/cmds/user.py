@@ -158,14 +158,14 @@ class User(commands.Cog):
             if badge_rows := [j for i in badges_values for j in i] if len(badges_values) > 1 else badges_values:
                 if len(badge_rows) > 1:
                     rows = await self.database.select(
-                        "items", "img",
-                        f"ID_ITEM IN ({tuple(str(i) for i in badge_rows)})",
+                        "badges", "img",
+                        f"id IN ({tuple(str(i) for i in badge_rows)})",
                         "lvmin ASC"
                     )
                 else:
                     rows = await self.database.select(
-                        "items", "img",
-                        f"ID_ITEM IN ({badge_rows[0]})",
+                        "badges", "img",
+                        f"id IN ({badge_rows[0]})",
                         "lvmin ASC"
                     )
                 for row in rows:
